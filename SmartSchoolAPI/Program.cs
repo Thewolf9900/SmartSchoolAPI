@@ -16,16 +16,15 @@ var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 // --- تكوين الاتصال بقاعدة البيانات (PostgreSQL) ---
-var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-dataSourceBuilder.MapEnum<SmartSchoolAPI.Enums.QuestionType>();
-dataSourceBuilder.MapEnum<SmartSchoolAPI.Enums.QuestionStatus>();
-dataSourceBuilder.MapEnum<SmartSchoolAPI.Enums.DifficultyLevel>();
-var dataSource = dataSourceBuilder.Build();
-
 builder.Services.AddDbContext<SmartSchoolDbContext>(options =>
-    options.UseNpgsql(dataSource)
+    options.UseNpgsql(connectionString)
            .UseSnakeCaseNamingConvention()
 );
+
+// تسجيل أنواع Enum بشكل عام لـ Npgsql
+Npgsql.NpgsqlConnection.GlobalTypeMapper.MapEnum<SmartSchoolAPI.Enums.QuestionType>();
+Npgsql.NpgsqlConnection.GlobalTypeMapper.MapEnum<SmartSchoolAPI.Enums.QuestionStatus>();
+Npgsql.NpgsqlConnection.GlobalTypeMapper.MapEnum<SmartSchoolAPI.Enums.DifficultyLevel>();
 
 // --- تسجيل المستودعات والخدمات (Dependency Injection) ---
 builder.Services.AddScoped<IAcademicProgramRepository, AcademicProgramRepository>();
