@@ -147,7 +147,7 @@ app.UseStaticFiles(new StaticFileOptions
     FileProvider = new PhysicalFileProvider(uploadsPath),
     RequestPath = "/uploads"
 });
-//await DataSeeder.SeedAdminUser(app.Services);
+await DataSeeder.SeedAdminUser(app.Services);
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
