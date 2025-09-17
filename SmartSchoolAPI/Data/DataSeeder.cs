@@ -12,7 +12,7 @@ namespace SmartSchoolAPI.Data
                 var context = scope.ServiceProvider.GetRequiredService<SmartSchoolDbContext>();
 
                 // التأكد من أن قاعدة البيانات موجودة ومحدثة
-                //     await context.Database.EnsureCreatedAsync();
+                     await context.Database.EnsureCreatedAsync();
 
                 // بذر حساب المدير
 
