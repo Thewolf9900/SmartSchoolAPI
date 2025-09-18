@@ -28,7 +28,7 @@ namespace SmartSchoolAPI.Interfaces
         /// يحذف ملفًا ماديًا من الخادم بناءً على مساره النسبي.
         /// </summary>
         /// <param name="relativePath">المسار النسبي للملف (e.g., 'uploads/folder/file.jpg').</param>
-        void DeleteFile(string relativePath);
+        Task DeleteFileAsync(string fileUrl);
 
         /// <summary>
         /// يسترجع بيانات ملف مادي (بايتات، نوع المحتوى، اسم الملف) من الخادم.
