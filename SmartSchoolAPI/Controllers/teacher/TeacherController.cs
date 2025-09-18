@@ -174,8 +174,59 @@ namespace SmartSchoolAPI.Controllers.teacher
         #endregion
 
         #region إدارة المحاضرات والمحتوى
+ 
+// POST: /api/teacher/classrooms/{classroomId}/lectures
+[HttpPost("classrooms/{classroomId}/lectures")]
+public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] CreateLectureDto createDto)
+{
+     var teacherIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (!int.TryParse(teacherIdString, out var teacherId))
+    {
+        return Unauthorized("Invalid user identifier in token.");
+    }
 
-        [HttpGet("classrooms/{classroomId}/lectures")]
+    var classroom = await _classroomRepository.GetClassroomByIdAsync(classroomId);
+    if (classroom == null)
+    {
+        return NotFound("Classroom not found.");
+    }
+    if (classroom.TeacherId != teacherId)
+    {
+        return Forbid();
+    }
+
+     if (classroom.Status != ClassroomStatus.ACTIVE)
+    {
+        return BadRequest("You cannot add lectures to a non-active classroom.");
+    }
+    
+     var lecture = new Lecture
+    {
+        Title = createDto.Title,
+        Description = createDto.Description,
+        LectureOrder = createDto.LectureOrder,
+        ClassroomId = classroomId,
+        CreatedAt = DateTime.UtcNow
+    };
+
+    // 4. إضافة المحاضرة وحفظ التغييرات
+    _lectureRepository.CreateLecture(lecture);
+    await _lectureRepository.SaveChangesAsync();
+    
+    // 5. إرجاع استجابة "201 Created" مع بيانات المحاضرة الجديدة
+    var lectureDto = new LectureDto
+    {
+        LectureId = lecture.LectureId,
+        Title = lecture.Title,
+        Description = lecture.Description,
+        LectureOrder = lecture.LectureOrder,
+        CreatedAt = lecture.CreatedAt
+    };
+
+    return CreatedAtAction(nameof(GetClassroomLectures), new { classroomId = classroomId }, lectureDto);
+}
+
+         [HttpGet("classrooms/{classroomId}/lectures")]
         public async Task<ActionResult<IEnumerable<LectureContentDto>>> GetClassroomLectures(int classroomId)
         {
             var teacherId = GetCurrentUserId();
