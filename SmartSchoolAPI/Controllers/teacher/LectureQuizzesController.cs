@@ -236,7 +236,7 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
             if (!string.IsNullOrEmpty(question.ImageUrl))
             {
-                _fileService.DeleteFile(question.ImageUrl);
+                await _fileService.DeleteFileAsync(question.ImageUrl);
             }
 
             await _quizRepo.SaveChangesAsync();
@@ -265,7 +265,7 @@ namespace SmartSchoolAPI.Controllers.Teacher
             {
                 if (!string.IsNullOrEmpty(question.ImageUrl))
                 {
-                    _fileService.DeleteFile(question.ImageUrl);
+                    await _fileService.DeleteFileAsync(question.ImageUrl);
                 }
             }
 

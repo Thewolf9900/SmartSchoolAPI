@@ -248,14 +248,14 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
              if (updateDto.DeleteCurrentImage && !string.IsNullOrEmpty(question.ImageUrl))
             {
-                _fileService.DeleteFile(question.ImageUrl);
+                await _fileService.DeleteFileAsync(question.ImageUrl);
                 question.ImageUrl = null;
             }
             else if (updateDto.NewImage != null && updateDto.NewImage.Length > 0)
             {
                 if (!string.IsNullOrEmpty(question.ImageUrl))
                 {
-                    _fileService.DeleteFile(question.ImageUrl);
+                    await _fileService.DeleteFileAsync(question.ImageUrl);
                 }
                 question.ImageUrl = await _fileService.SaveFileAsync(updateDto.NewImage, "question_bank");
             }
@@ -316,7 +316,7 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
             if (!string.IsNullOrEmpty(question.ImageUrl))
             {
-                _fileService.DeleteFile(question.ImageUrl);
+                await _fileService.DeleteFileAsync(question.ImageUrl);
             }
 
             _questionRepo.DeleteQuestion(question);

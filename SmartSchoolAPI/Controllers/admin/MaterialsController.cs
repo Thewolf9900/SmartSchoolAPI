@@ -139,7 +139,7 @@ namespace SmartSchoolAPI.Controllers.Admin
 
             if (material.MaterialType == "File" && !string.IsNullOrEmpty(material.Url))
             {
-                _fileService.DeleteFile(material.Url);
+                await _fileService.DeleteFileAsync(material.Url);
             }
 
             _materialRepo.DeleteMaterial(material);

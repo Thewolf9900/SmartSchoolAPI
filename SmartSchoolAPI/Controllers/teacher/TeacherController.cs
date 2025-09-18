@@ -410,7 +410,7 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
 
             if (materialFromRepo.MaterialType == "File" && !string.IsNullOrEmpty(materialFromRepo.Url))
             {
-                _fileService.DeleteFile(materialFromRepo.Url);
+                await _fileService.DeleteFileAsync(materialFromRepo.Url);
             }
 
             _materialRepository.DeleteMaterial(materialFromRepo);
