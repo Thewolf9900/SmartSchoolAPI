@@ -46,6 +46,7 @@ builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IWeeklyChallengeRepository, WeeklyChallengeRepository>();
 
 builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
 // تسجيل خدمات الذكاء الاصطناعي
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IAiService, AiService>();

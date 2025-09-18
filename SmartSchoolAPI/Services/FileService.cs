@@ -1,5 +1,8 @@
-﻿using Microsoft.AspNetCore.StaticFiles;
+﻿using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
+using Microsoft.Extensions.Options;
 using SmartSchoolAPI.Interfaces;
+using SmartSchoolAPI.Settings;
 using System.Text;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
@@ -7,16 +10,33 @@ using UglyToad.PdfPig.Content;
 namespace SmartSchoolAPI.Services
 {
     /// <summary>
-    /// خدمة مسؤولة عن كافة عمليات التعامل مع الملفات المادية،
-    /// بما في ذلك الحفظ، الحذف، واستخلاص المحتوى النصي بشكل متقدم.
+    /// خدمة مسؤولة عن كافة عمليات التعامل مع الملفات،
+    /// بما في ذلك الرفع إلى Cloudinary، الحذف، واستخلاص المحتوى النصي بشكل متقدم.
     /// </summary>
     public class FileService : IFileService
     {
-        private readonly IWebHostEnvironment _hostEnvironment;
+        private readonly Cloudinary _cloudinary;
 
-        public FileService(IWebHostEnvironment hostEnvironment)
+        /// <summary>
+        /// يقوم بتهيئة الخدمة مع إعدادات الاتصال بـ Cloudinary.
+        /// </summary>
+        /// <param name="config">إعدادات Cloudinary التي تم حقنها.</param>
+        public FileService(IOptions<CloudinarySettings> config)
         {
-            _hostEnvironment = hostEnvironment;
+            if (config.Value == null ||
+                string.IsNullOrEmpty(config.Value.CloudName) ||
+                string.IsNullOrEmpty(config.Value.ApiKey) ||
+                string.IsNullOrEmpty(config.Value.ApiSecret))
+            {
+                throw new ArgumentException("إعدادات Cloudinary غير مكتملة أو مفقودة.");
+            }
+
+            var account = new Account(
+                config.Value.CloudName,
+                config.Value.ApiKey,
+                config.Value.ApiSecret
+            );
+            _cloudinary = new Cloudinary(account);
         }
 
         #region استخلاص المحتوى للذكاء الاصطناعي
@@ -37,28 +57,20 @@ namespace SmartSchoolAPI.Services
 
             var fileExtension = Path.GetExtension(file.FileName).ToLowerInvariant();
 
-            // إذا لم يكن الملف PDF، يتم التعامل معه كملف نصي عادي.
             if (fileExtension != ".pdf")
             {
                 using var reader = new StreamReader(file.OpenReadStream());
                 return await reader.ReadToEndAsync();
             }
 
-            // --- تطبيق منطق العينات العشوائية الذكي لملفات PDF ---
-
-            // تحديد معايير العينة لضمان أداء متسق.
-            const int numberOfPagesToSample = 5; // عدد الصفحات الأقصى للعينة.
-            const int maxCharacterLimit = 2500;  // الحد الأقصى لعدد الأحرف في النص النهائي.
-
+            const int numberOfPagesToSample = 5;
+            const int maxCharacterLimit = 2500;
             var allPagesText = new List<string>();
-
-            // الخطوة 1: استخلاص النص من كل صفحة وتخزينها في قائمة.
             using (var stream = file.OpenReadStream())
             {
                 using PdfDocument document = PdfDocument.Open(stream);
                 if (document.NumberOfPages == 0) return string.Empty;
-
-                foreach (Page page in document.GetPages())
+                foreach (UglyToad.PdfPig.Content.Page page in document.GetPages())
                 {
                     if (!string.IsNullOrWhiteSpace(page.Text))
                     {
@@ -66,129 +78,127 @@ namespace SmartSchoolAPI.Services
                     }
                 }
             }
-
-            // الخطوة 2: اختيار عينة عشوائية من الصفحات المستخلصة.
             var random = new Random();
             int pagesToTake = Math.Min(numberOfPagesToSample, allPagesText.Count);
-
-            // يتم خلط قائمة الصفحات لضمان العشوائية ثم اختيار العدد المطلوب.
             var sampledPages = allPagesText.OrderBy(x => random.Next()).Take(pagesToTake).ToList();
-
-            // الخطوة 3: تجميع نصوص العينة مع مراقبة الحد الأقصى للحجم.
             var textBuilder = new StringBuilder();
             foreach (var pageText in sampledPages)
             {
-                // إذا كانت إضافة نص الصفحة التالية ستتجاوز الحد، يتم التوقف.
                 if (textBuilder.Length + pageText.Length > maxCharacterLimit)
                 {
                     int remainingChars = maxCharacterLimit - textBuilder.Length;
                     if (remainingChars > 0)
                     {
-                        // إضافة جزء من النص فقط لملء المساحة المتبقية.
                         textBuilder.Append(pageText.Substring(0, Math.Min(pageText.Length, remainingChars)));
                     }
                     break;
                 }
-
                 textBuilder.AppendLine(pageText);
             }
-
-            // الخطوة 4: إجراء قص نهائي كإجراء احترازي لضمان عدم تجاوز الحد الأقصى.
             if (textBuilder.Length > maxCharacterLimit)
             {
                 textBuilder.Length = maxCharacterLimit;
             }
-
             return textBuilder.ToString();
         }
 
         #endregion
 
-        #region عمليات نظام الملفات
+        #region عمليات Cloudinary
 
         /// <summary>
-        /// يحفظ ملفًا في الخادم ضمن مجلد فرعي محدد.
+        /// يرفع ملفًا إلى Cloudinary ويحدد نوعه تلقائيًا (صورة، فيديو، ملف عام).
         /// </summary>
-        /// <param name="file">الملف المراد حفظه.</param>
-        /// <param name="subfolder">اسم المجلد الفرعي داخل مجلد 'uploads'.</param>
-        /// <returns>المسار النسبي للملف المحفوظ.</returns>
+        /// <param name="file">الملف المراد رفعه.</param>
+        /// <param name="subfolder">اسم المجلد الفرعي داخل Cloudinary لتنظيم الملفات.</param>
+        /// <returns>رابط URL الآمن للملف الذي تم رفعه.</returns>
         public async Task<string> SaveFileAsync(IFormFile file, string subfolder)
         {
-            var uploadPath = Path.Combine(_hostEnvironment.WebRootPath, "uploads", subfolder);
-            if (!Directory.Exists(uploadPath))
+            if (file == null || file.Length == 0)
             {
-                Directory.CreateDirectory(uploadPath);
+                throw new ArgumentException("الملف فارغ أو غير موجود.", nameof(file));
             }
 
-            var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-            var filePath = Path.Combine(uploadPath, fileName);
+            UploadResult uploadResult;
 
-            using (var stream = new FileStream(filePath, FileMode.Create))
+            await using var stream = file.OpenReadStream();
+
+            // تحديد نوع الرفع بناءً على نوع محتوى الملف
+            if (file.ContentType.StartsWith("image/"))
             {
-                await file.CopyToAsync(stream);
+                var uploadParams = new ImageUploadParams()
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general"
+                };
+                uploadResult = await _cloudinary.UploadAsync(uploadParams);
+            }
+            else if (file.ContentType.StartsWith("video/"))
+            {
+                var uploadParams = new VideoUploadParams()
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general"
+                };
+                uploadResult = await _cloudinary.UploadAsync(uploadParams);
+            }
+            else // للملفات الأخرى (PDF, DOCX, etc.)
+            {
+                var uploadParams = new RawUploadParams()
+                {
+                    File = new FileDescription(file.FileName, stream),
+                    Folder = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general"
+                };
+                uploadResult = await _cloudinary.UploadAsync(uploadParams);
             }
 
-            return Path.Combine("uploads", subfolder, fileName).Replace('\\', '/');
+            if (uploadResult.Error != null)
+            {
+                throw new Exception($"فشل رفع الملف إلى Cloudinary: {uploadResult.Error.Message}");
+            }
+
+            return uploadResult.SecureUrl.ToString();
         }
 
         /// <summary>
-        /// يحذف ملفًا ماديًا من الخادم بناءً على مساره النسبي.
+        /// يحذف ملفًا من Cloudinary بناءً على رابط URL الخاص به.
         /// </summary>
-        /// <param name="relativePath">المسار النسبي للملف (e.g., 'uploads/folder/file.jpg').</param>
-        public void DeleteFile(string relativePath)
+        /// <param name="fileUrl">رابط URL الكامل للملف على Cloudinary.</param>
+        public async Task DeleteFileAsync(string fileUrl)
         {
-            if (string.IsNullOrEmpty(relativePath)) return;
+            if (string.IsNullOrEmpty(fileUrl)) return;
 
-            var fullPath = Path.Combine(_hostEnvironment.WebRootPath, relativePath);
-            if (File.Exists(fullPath))
+            try
             {
-                File.Delete(fullPath);
+                // استخلاص PublicId من الرابط (هذا هو معرف الملف في Cloudinary)
+                var uri = new Uri(fileUrl);
+                var segments = uri.Segments;
+                // PublicId هو الجزء الأخير من المسار بدون الامتداد
+                var publicIdWithFolder = string.Join("", segments.Skip(segments.Length - 2)).Split('.')[0];
+
+                // Cloudinary يحتاج إلى معرفة نوع المورد لحذفه
+                var deletionParams = new DeletionParams(publicIdWithFolder);
+                var result = await _cloudinary.DestroyAsync(deletionParams);
+
+                // يمكنك التحقق من 'result.Result' إذا كان "ok" أو "not found"
+            }
+            catch (Exception ex)
+            {
+                // يمكنك تسجيل الخطأ هنا بدلاً من إطلاقه
+                Console.WriteLine($"خطأ أثناء حذف الملف من Cloudinary: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// يسترجع بيانات ملف مادي (بايتات، نوع المحتوى، اسم الملف) من الخادم.
+        /// (مهملة) هذه الدالة لم تعد قابلة للتطبيق لأن الملفات لم تعد موجودة على الخادم.
         /// </summary>
-        /// <param name="relativePath">المسار النسبي للملف.</param>
-        /// <returns>Tuple يحتوي على بيانات الملف أو قيم null إذا لم يتم العثور عليه.</returns>
         public (byte[] fileBytes, string contentType, string fileName) GetPhysicalFile(string relativePath)
         {
-            if (string.IsNullOrEmpty(relativePath))
-            {
-                return (null, null, null);
-            }
-
-            var fullPath = Path.Combine(_hostEnvironment.WebRootPath, relativePath);
-
-            if (!File.Exists(fullPath))
-            {
-                return (null, null, null);
-            }
-
-            var fileBytes = File.ReadAllBytes(fullPath);
-            var contentType = GetMimeType(fullPath);
-            var fileName = Path.GetFileName(fullPath);
-
-            return (fileBytes, contentType, fileName);
+            throw new NotSupportedException("الملفات لم تعد مخزنة محليًا. استخدم رابط URL للوصول إليها مباشرة من الواجهة الأمامية.");
         }
 
         #endregion
 
-        #region دوال مساعدة
-
-        /// <summary>
-        /// يحدد نوع المحتوى (MIME type) لملف بناءً على امتداده.
-        /// </summary>
-        private string GetMimeType(string filePath)
-        {
-            var provider = new FileExtensionContentTypeProvider();
-            if (!provider.TryGetContentType(filePath, out var contentType))
-            {
-                contentType = "application/octet-stream"; // نوع افتراضي للملفات غير المعروفة.
-            }
-            return contentType;
-        }
-
-        #endregion
+        // GetMimeType لم يعد ضروريًا لأن Cloudinary يتعامل مع ذلك، ولكن يمكن تركه إذا كان مستخدمًا في مكان آخر
     }
 }
