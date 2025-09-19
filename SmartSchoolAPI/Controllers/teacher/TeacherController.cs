@@ -422,7 +422,7 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
         [HttpGet("materials/{materialId}/download")]
         public async Task<IActionResult> DownloadMaterial(int materialId)
         {
-            var teacherId = GetCurrentUserId();
+             var teacherId = GetCurrentUserId();
             if (teacherId == null) return Unauthorized(new { message = "معرّف المستخدم غير صالح." });
 
             var material = await _materialRepository.GetMaterialWithDeepDetailsAsync(materialId);
@@ -453,17 +453,9 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
             {
                 return Forbid();
             }
-
-            var (fileBytes, contentType, fileName) = _fileService.GetPhysicalFile(material.Url);
-            if (fileBytes == null)
-            {
-                return NotFound(new { message = "تعذر العثور على الملف الفعلي على الخادم." });
-            }
-
-            var downloadName = material.OriginalFilename ?? fileName;
-            return File(fileBytes, contentType, downloadName);
+            
+            return Redirect(material.Url);
         }
-
         #endregion
 
         #region إدارة الطلاب والدرجات
