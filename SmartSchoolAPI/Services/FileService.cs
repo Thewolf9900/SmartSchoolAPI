@@ -17,10 +17,6 @@ namespace SmartSchoolAPI.Services
     {
         private readonly Cloudinary _cloudinary;
 
-        /// <summary>
-        /// يقوم بتهيئة الخدمة مع إعدادات الاتصال بـ Cloudinary.
-        /// </summary>
-        /// <param name="config">إعدادات Cloudinary التي تم حقنها.</param>
         public FileService(IOptions<CloudinarySettings> config)
         {
             if (config.Value == null ||
@@ -66,10 +62,12 @@ namespace SmartSchoolAPI.Services
             const int numberOfPagesToSample = 5;
             const int maxCharacterLimit = 2500;
             var allPagesText = new List<string>();
+
             using (var stream = file.OpenReadStream())
             {
                 using PdfDocument document = PdfDocument.Open(stream);
                 if (document.NumberOfPages == 0) return string.Empty;
+
                 foreach (UglyToad.PdfPig.Content.Page page in document.GetPages())
                 {
                     if (!string.IsNullOrWhiteSpace(page.Text))
@@ -78,10 +76,12 @@ namespace SmartSchoolAPI.Services
                     }
                 }
             }
+
             var random = new Random();
             int pagesToTake = Math.Min(numberOfPagesToSample, allPagesText.Count);
             var sampledPages = allPagesText.OrderBy(x => random.Next()).Take(pagesToTake).ToList();
             var textBuilder = new StringBuilder();
+
             foreach (var pageText in sampledPages)
             {
                 if (textBuilder.Length + pageText.Length > maxCharacterLimit)
@@ -95,19 +95,21 @@ namespace SmartSchoolAPI.Services
                 }
                 textBuilder.AppendLine(pageText);
             }
+
             if (textBuilder.Length > maxCharacterLimit)
             {
                 textBuilder.Length = maxCharacterLimit;
             }
+
             return textBuilder.ToString();
         }
 
         #endregion
 
-        #region عمليات Cloudinary
+        #region عمليات نظام الملفات
 
         /// <summary>
-        /// يرفع ملفًا إلى Cloudinary ويحدد نوعه تلقائيًا (صورة، فيديو، ملف عام).
+        /// يرفع ملفًا إلى خدمة التخزين السحابي Cloudinary.
         /// </summary>
         /// <param name="file">الملف المراد رفعه.</param>
         /// <param name="subfolder">اسم المجلد الفرعي داخل Cloudinary لتنظيم الملفات.</param>
@@ -120,34 +122,25 @@ namespace SmartSchoolAPI.Services
             }
 
             UploadResult uploadResult;
-
             await using var stream = file.OpenReadStream();
+            var folderPath = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general";
 
-            // تحديد نوع الرفع بناءً على نوع محتوى الملف
-            if (file.ContentType.StartsWith("image/"))
+            if (file.ContentType.StartsWith("image/") || file.ContentType.StartsWith("video/"))
             {
-                var uploadParams = new ImageUploadParams()
+                var uploadParams = new AutoUploadParams()
                 {
                     File = new FileDescription(file.FileName, stream),
-                    Folder = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general"
+                    Folder = folderPath,
                 };
                 uploadResult = await _cloudinary.UploadAsync(uploadParams);
             }
-            else if (file.ContentType.StartsWith("video/"))
-            {
-                var uploadParams = new VideoUploadParams()
-                {
-                    File = new FileDescription(file.FileName, stream),
-                    Folder = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general"
-                };
-                uploadResult = await _cloudinary.UploadAsync(uploadParams);
-            }
-            else // للملفات الأخرى (PDF, DOCX, etc.)
+            else
             {
                 var uploadParams = new RawUploadParams()
                 {
                     File = new FileDescription(file.FileName, stream),
-                    Folder = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general"
+                    Folder = folderPath,
+                    AccessMode = "public"
                 };
                 uploadResult = await _cloudinary.UploadAsync(uploadParams);
             }
@@ -161,44 +154,39 @@ namespace SmartSchoolAPI.Services
         }
 
         /// <summary>
-        /// يحذف ملفًا من Cloudinary بناءً على رابط URL الخاص به.
+        /// يحذف ملفًا من خدمة التخزين السحابي Cloudinary بناءً على رابطه.
         /// </summary>
         /// <param name="fileUrl">رابط URL الكامل للملف على Cloudinary.</param>
         public async Task DeleteFileAsync(string fileUrl)
         {
             if (string.IsNullOrEmpty(fileUrl)) return;
-
             try
             {
-                // استخلاص PublicId من الرابط (هذا هو معرف الملف في Cloudinary)
                 var uri = new Uri(fileUrl);
                 var segments = uri.Segments;
-                // PublicId هو الجزء الأخير من المسار بدون الامتداد
-                var publicIdWithFolder = string.Join("", segments.Skip(segments.Length - 2)).Split('.')[0];
-
-                // Cloudinary يحتاج إلى معرفة نوع المورد لحذفه
+                // يستخلص المعرف العام للملف بما في ذلك المجلدات
+                var publicIdWithFolderAndVersion = string.Join("", segments.Skip(Array.IndexOf(segments, "upload/") + 1));
+                // يزيل رقم الإصدار إذا كان موجودًا
+                var publicIdWithFolder = publicIdWithFolderAndVersion.Substring(publicIdWithFolderAndVersion.IndexOf('/') + 1).Split('.')[0];
                 var deletionParams = new DeletionParams(publicIdWithFolder);
-                var result = await _cloudinary.DestroyAsync(deletionParams);
-
-                // يمكنك التحقق من 'result.Result' إذا كان "ok" أو "not found"
+                await _cloudinary.DestroyAsync(deletionParams);
             }
             catch (Exception ex)
             {
-                // يمكنك تسجيل الخطأ هنا بدلاً من إطلاقه
                 Console.WriteLine($"خطأ أثناء حذف الملف من Cloudinary: {ex.Message}");
             }
         }
 
         /// <summary>
-        /// (مهملة) هذه الدالة لم تعد قابلة للتطبيق لأن الملفات لم تعد موجودة على الخادم.
+        /// (مهملة) يسترجع بيانات ملف مادي. هذه الدالة لم تعد مدعومة لأن الملفات مخزنة سحابيًا.
         /// </summary>
+        /// <param name="relativePath">المسار النسبي للملف.</param>
+        /// <returns>استثناء NotSupportedException.</returns>
         public (byte[] fileBytes, string contentType, string fileName) GetPhysicalFile(string relativePath)
         {
             throw new NotSupportedException("الملفات لم تعد مخزنة محليًا. استخدم رابط URL للوصول إليها مباشرة من الواجهة الأمامية.");
         }
 
         #endregion
-
-        // GetMimeType لم يعد ضروريًا لأن Cloudinary يتعامل مع ذلك، ولكن يمكن تركه إذا كان مستخدمًا في مكان آخر
     }
 }
