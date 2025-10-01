@@ -11,6 +11,10 @@ namespace SmartSchoolAPI.Entities
         [Column("material_id")]
         public int MaterialId { get; set; }
 
+        [Column("public_id")]
+        [StringLength(255)]
+        public string? PublicId { get; set; }
+
         [Required]
         [Column("title")]
         [StringLength(255)]

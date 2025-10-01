@@ -9,8 +9,10 @@ using SmartSchoolAPI.DTOs.Quiz;
 using SmartSchoolAPI.Entities;
 using SmartSchoolAPI.Enums;
 using SmartSchoolAPI.Interfaces;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -32,11 +34,13 @@ namespace SmartSchoolAPI.Controllers.Student
         private readonly IGraduationRepository _graduationRepo;
         private readonly ILectureQuizRepository _quizRepo;
         private readonly ILectureRepository _lectureRepo;
+        private readonly IHttpClientFactory _httpClientFactory;
 
         public StudentController(
             IEnrollmentRepository enrollmentRepo, IClassroomRepository classroomRepo, ICourseRepository courseRepo,
             IMaterialRepository materialRepo, IUserRepository userRepo, IAnnouncementRepository announcementRepo,
-            IFileService fileService, IGraduationRepository graduationRepo, ILectureRepository lectureRepo, ILectureQuizRepository quizRepo)
+            IFileService fileService, IGraduationRepository graduationRepo, ILectureRepository lectureRepo,
+            ILectureQuizRepository quizRepo, IHttpClientFactory httpClientFactory)
         {
             _enrollmentRepo = enrollmentRepo;
             _classroomRepo = classroomRepo;
@@ -48,6 +52,7 @@ namespace SmartSchoolAPI.Controllers.Student
             _graduationRepo = graduationRepo;
             _lectureRepo = lectureRepo;
             _quizRepo = quizRepo;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpGet("my-classrooms")]
@@ -63,7 +68,7 @@ namespace SmartSchoolAPI.Controllers.Student
                 ClassroomId = e.Classroom.ClassroomId,
                 Name = e.Classroom.Name,
                 CourseName = e.Classroom.Course.Name,
-                CourseId=e.Classroom.Course.CourseId,
+                CourseId = e.Classroom.Course.CourseId,
                 TeacherName = e.Classroom.Teacher != null ? $"{e.Classroom.Teacher.FirstName} {e.Classroom.Teacher.LastName}" : "غير معين",
                 Status = e.Classroom.Status.ToString(),
                 Capacity = e.Classroom.Capacity,
@@ -170,7 +175,7 @@ namespace SmartSchoolAPI.Controllers.Student
 
             var materials = await _materialRepo.GetMaterialsForCourseAsync(courseId);
 
-             var materialDtos = materials.Select(m => new MaterialDto
+            var materialDtos = materials.Select(m => new MaterialDto
             {
                 MaterialId = m.MaterialId,
                 Title = m.Title,
@@ -184,46 +189,52 @@ namespace SmartSchoolAPI.Controllers.Student
 
             return Ok(materialDtos);
         }
- 
-        [HttpGet("materials/{materialId}/download")]
-        public async Task<IActionResult> DownloadMaterial(int materialId)
-        {
-            var studentId = GetCurrentUserId();
-            if (studentId == null) return Unauthorized();
 
-             var material = await _materialRepo.GetMaterialWithDeepDetailsAsync(materialId);
+        //[HttpGet("materials/{materialId}/download")]
+        //public async Task<IActionResult> DownloadMaterial(int materialId)
+        //{
+        //    var studentId = GetCurrentUserId();
+        //    if (studentId == null) return Unauthorized();
 
-            if (material == null || material.MaterialType != "File" || string.IsNullOrEmpty(material.Url))
-            {
-                return NotFound(new { message = "الملف غير موجود أو غير صالح للتحميل." });
-            }
+        //    var material = await _materialRepo.GetMaterialWithDeepDetailsAsync(materialId);
 
-            bool hasAccess = false;
+        //    if (material == null || material.MaterialType != "File" || string.IsNullOrEmpty(material.Url))
+        //    {
+        //        return NotFound(new { message = "الملف غير موجود أو غير صالح للتحميل." });
+        //    }
 
-             if (material.Lecture?.Classroom != null)
-            {
-                hasAccess = material.Lecture.Classroom.Enrollments.Any(e => e.StudentId == studentId.Value);
-            }
-             else if (material.Course != null)
-            {
-                 hasAccess = await _enrollmentRepo.IsStudentEnrolledInCourseAsync(studentId.Value, material.Course.CourseId);
-            }
+        //    bool hasAccess = false;
 
-            if (!hasAccess)
-            {
-                return Forbid();
-            }
+        //    if (material.Lecture?.Classroom != null)
+        //    {
+        //        hasAccess = material.Lecture.Classroom.Enrollments.Any(e => e.StudentId == studentId.Value);
+        //    }
+        //    else if (material.Course != null)
+        //    {
+        //        hasAccess = await _enrollmentRepo.IsStudentEnrolledInCourseAsync(studentId.Value, material.Course.CourseId);
+        //    }
 
-            var (fileBytes, contentType, fileName) = _fileService.GetPhysicalFile(material.Url);
+        //    if (!hasAccess)
+        //    {
+        //        return Forbid();
+        //    }
 
-            if (fileBytes == null)
-            {
-                return NotFound(new { message = "تعذر العثور على الملف الفعلي على الخادم." });
-            }
+        //    try
+        //    {
+        //        var client = _httpClientFactory.CreateClient();
+        //        var fileBytes = await client.GetByteArrayAsync(material.Url);
+        //        var downloadName = material.OriginalFilename ?? Path.GetFileName(new Uri(material.Url).LocalPath);
 
-            var downloadName = material.OriginalFilename ?? fileName;
-            return File(fileBytes, contentType, downloadName);
-        }
+        //        var contentType = "application/octet-stream";
+        //        if (downloadName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) contentType = "application/pdf";
+
+        //        return File(fileBytes, contentType, downloadName);
+        //    }
+        //    catch (Exception)
+        //    {
+        //        return StatusCode(500, new { message = "فشل تحميل الملف من الخدمة السحابية." });
+        //    }
+        //}
 
         [HttpGet("announcements")]
         public async Task<ActionResult<IEnumerable<AnnouncementDto>>> GetMyAnnouncements()
@@ -442,7 +453,7 @@ namespace SmartSchoolAPI.Controllers.Student
 
             if (submission.StudentId != studentId.Value)
             {
-                return Forbid(); 
+                return Forbid();
             }
 
             var questionReviews = submission.LectureQuiz.Questions.Select(question =>

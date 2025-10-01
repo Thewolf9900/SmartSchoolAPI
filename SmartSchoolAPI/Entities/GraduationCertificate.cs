@@ -21,10 +21,15 @@ namespace SmartSchoolAPI.Entities
         public string FileType { get; set; } = string.Empty;
 
         [Required]
-        [Column("certificate_data")]
-        public byte[] CertificateData { get; set; } = System.Array.Empty<byte>();
+        [Column("certificate_url")]
+        [StringLength(512)]
+        public string CertificateUrl { get; set; } = string.Empty;
 
-        // --- Navigation Property ---
+        [Required]
+        [Column("public_id")]
+        [StringLength(255)]
+        public string PublicId { get; set; } = string.Empty;
+
         [ForeignKey("GraduationId")]
         public Graduation? Graduation { get; set; }
     }

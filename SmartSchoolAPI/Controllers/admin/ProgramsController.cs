@@ -36,7 +36,8 @@ namespace SmartSchoolAPI.Controllers.Admin
             {
                 AcademicProgramId = p.AcademicProgramId,
                 Name = p.Name,
-                Description = p.Description
+                Description = p.Description,
+                  IsRegistrationOpen = p.IsRegistrationOpen
             });
             return Ok(programsDto);
         }
@@ -53,7 +54,8 @@ namespace SmartSchoolAPI.Controllers.Admin
             {
                 AcademicProgramId = program.AcademicProgramId,
                 Name = program.Name,
-                Description = program.Description
+                Description = program.Description,
+                IsRegistrationOpen = program.IsRegistrationOpen
             };
             return Ok(programDto);
         }
@@ -89,7 +91,9 @@ namespace SmartSchoolAPI.Controllers.Admin
             {
                 Name = createDto.Name,
                 Description = createDto.Description,
-                CreatedAt = System.DateTime.UtcNow
+                CreatedAt = System.DateTime.UtcNow,
+                IsRegistrationOpen = false 
+                // التسجيل مغلق بشكل افتراضي عند إنشاء برنامج جديد
             };
 
             await _programRepo.CreateProgramAsync(programEntity);
@@ -121,6 +125,27 @@ namespace SmartSchoolAPI.Controllers.Admin
             return NoContent();
         }
 
+         [HttpPost("{id}/toggle-registration")]
+        public async Task<IActionResult> ToggleRegistrationStatus(int id)
+        {
+            var program = await _programRepo.GetProgramByIdAsync(id);
+            if (program == null)
+            {
+                return NotFound(new { message = "لم يتم العثور على البرنامج." });
+            }
+
+             program.IsRegistrationOpen = !program.IsRegistrationOpen;
+
+            await _programRepo.SaveChangesAsync();
+
+            var statusMessage = program.IsRegistrationOpen ? "مفتوح الآن" : "مغلق الآن";
+            return Ok(new
+            {
+                message = $"تم تحديث حالة التسجيل للبرنامج بنجاح. الحالة الجديدة: {statusMessage}.",
+                isRegistrationOpen = program.IsRegistrationOpen
+            });
+        }
+ 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteProgram(int id)
         {
@@ -148,9 +173,5 @@ namespace SmartSchoolAPI.Controllers.Admin
         }
 
         #endregion
-
-
-
-
     }
 }

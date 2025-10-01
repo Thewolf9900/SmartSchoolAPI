@@ -23,8 +23,12 @@ namespace SmartSchoolAPI.Entities
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
 
+        [Column("is_registration_open")]
+        public bool IsRegistrationOpen { get; set; }
+
         // --- Navigation Properties ---
         public ICollection<Course> Courses { get; set; } = new List<Course>();
         public ICollection<User> Users { get; set; } = new List<User>();
+         public ICollection<ProgramRegistration> ProgramRegistrations { get; set; } = new List<ProgramRegistration>();
     }
 }

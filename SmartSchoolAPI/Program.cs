@@ -25,6 +25,7 @@ builder.Services.AddDbContext<SmartSchoolDbContext>(options =>
 Npgsql.NpgsqlConnection.GlobalTypeMapper.MapEnum<SmartSchoolAPI.Enums.QuestionType>();
 Npgsql.NpgsqlConnection.GlobalTypeMapper.MapEnum<SmartSchoolAPI.Enums.QuestionStatus>();
 Npgsql.NpgsqlConnection.GlobalTypeMapper.MapEnum<SmartSchoolAPI.Enums.DifficultyLevel>();
+Npgsql.NpgsqlConnection.GlobalTypeMapper.MapEnum<SmartSchoolAPI.Enums.RegistrationStatus>();
 
 // --- تسجيل المستودعات والخدمات (Dependency Injection) ---
 builder.Services.AddScoped<IAcademicProgramRepository, AcademicProgramRepository>();
@@ -44,9 +45,11 @@ builder.Services.AddScoped<IQuestionRepository, QuestionRepository>();
 builder.Services.AddScoped<IChatRepository, ChatRepository>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IWeeklyChallengeRepository, WeeklyChallengeRepository>();
+builder.Services.AddScoped<IProgramRegistrationRepository, ProgramRegistrationRepository>();
 
 builder.Services.Configure<MailSettings>(builder.Configuration.GetSection("MailSettings"));
-builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings")); 
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("CloudinarySettings"));
+
 // تسجيل خدمات الذكاء الاصطناعي
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IAiService, AiService>();
@@ -71,6 +74,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8
                 .GetBytes(builder.Configuration["Jwt:Key"])),
             ValidateIssuer = true,
+
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidateAudience = true,
             ValidAudience = builder.Configuration["Jwt:Audience"],
@@ -142,15 +146,42 @@ if (!Directory.Exists(uploadsPath))
 {
     Directory.CreateDirectory(uploadsPath);
 }
-
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadsPath),
     RequestPath = "/uploads"
 });
-//await DataSeeder.SeedAdminUser(app.Services);
+
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// =================================================================
+ //      تطبيق تحديثات قاعدة البيانات وبذر البيانات الأولية عند بدء التشغيل
+// =================================================================
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var loggerFactory = services.GetRequiredService<ILoggerFactory>();
+    try
+    {
+        var context = services.GetRequiredService<SmartSchoolDbContext>();
+
+        // الخطوة 1: تطبيق الـ Migrations (الطريقة الاحترافية)
+        context.Database.Migrate();
+
+        // الخطوة 2: بذر بيانات المستخدم الأدمن )
+        await DataSeeder.SeedAdminUser(services);
+
+        var logger = loggerFactory.CreateLogger<Program>();
+        logger.LogInformation("Database migrated and seeded successfully.");
+    }
+    catch (Exception ex)
+    {
+        var logger = loggerFactory.CreateLogger<Program>();
+        logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+    }
+}
+ 
 app.Run();

@@ -34,7 +34,7 @@ namespace SmartSchoolAPI.Controllers.teacher
         private readonly IEnrollmentRepository _enrollmentRepository;
         private readonly IAnnouncementRepository _announcementRepository;
         private readonly ICourseRepository _courseRepository;
-        private readonly IWeeklyChallengeRepository _challengeRepo;  
+        private readonly IWeeklyChallengeRepository _challengeRepo;
 
         public TeacherController(
             IClassroomRepository classroomRepository, ILectureRepository lectureRepository,
@@ -51,6 +51,7 @@ namespace SmartSchoolAPI.Controllers.teacher
             _courseRepository = courseRepository;
             _challengeRepo = challengeRepo;
         }
+
         #region نظرة عامة ووظائف المنسق
 
         [HttpGet("my-coordinated-courses")]
@@ -174,59 +175,56 @@ namespace SmartSchoolAPI.Controllers.teacher
         #endregion
 
         #region إدارة المحاضرات والمحتوى
- 
-// POST: /api/teacher/classrooms/{classroomId}/lectures
-[HttpPost("classrooms/{classroomId}/lectures")]
-public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] CreateLectureDto createDto)
-{
-     var teacherIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-    if (!int.TryParse(teacherIdString, out var teacherId))
-    {
-        return Unauthorized("Invalid user identifier in token.");
-    }
 
-    var classroom = await _classroomRepository.GetClassroomByIdAsync(classroomId);
-    if (classroom == null)
-    {
-        return NotFound("Classroom not found.");
-    }
-    if (classroom.TeacherId != teacherId)
-    {
-        return Forbid();
-    }
+        [HttpPost("classrooms/{classroomId}/lectures")]
+        public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] CreateLectureDto createDto)
+        {
+            var teacherIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!int.TryParse(teacherIdString, out var teacherId))
+            {
+                return Unauthorized("Invalid user identifier in token.");
+            }
 
-     if (classroom.Status != ClassroomStatus.ACTIVE)
-    {
-        return BadRequest("You cannot add lectures to a non-active classroom.");
-    }
-    
-     var lecture = new Lecture
-    {
-        Title = createDto.Title,
-        Description = createDto.Description,
-        LectureOrder = createDto.LectureOrder,
-        ClassroomId = classroomId,
-        CreatedAt = DateTime.UtcNow
-    };
+            var classroom = await _classroomRepository.GetClassroomByIdAsync(classroomId);
+            if (classroom == null)
+            {
+                return NotFound("Classroom not found.");
+            }
+            if (classroom.TeacherId != teacherId)
+            {
+                return Forbid();
+            }
 
-    // 4. إضافة المحاضرة وحفظ التغييرات
-    _lectureRepository.CreateLecture(lecture);
-    await _lectureRepository.SaveChangesAsync();
-    
-    // 5. إرجاع استجابة "201 Created" مع بيانات المحاضرة الجديدة
-    var lectureDto = new LectureDto
-    {
-        LectureId = lecture.LectureId,
-        Title = lecture.Title,
-        Description = lecture.Description,
-        LectureOrder = lecture.LectureOrder,
-        CreatedAt = lecture.CreatedAt
-    };
+            if (classroom.Status != ClassroomStatus.ACTIVE)
+            {
+                return BadRequest("You cannot add lectures to a non-active classroom.");
+            }
 
-    return CreatedAtAction(nameof(GetClassroomLectures), new { classroomId = classroomId }, lectureDto);
-}
+            var lecture = new Lecture
+            {
+                Title = createDto.Title,
+                Description = createDto.Description,
+                LectureOrder = createDto.LectureOrder,
+                ClassroomId = classroomId,
+                CreatedAt = DateTime.UtcNow
+            };
 
-         [HttpGet("classrooms/{classroomId}/lectures")]
+            _lectureRepository.CreateLecture(lecture);
+            await _lectureRepository.SaveChangesAsync();
+
+            var lectureDto = new LectureDto
+            {
+                LectureId = lecture.LectureId,
+                Title = lecture.Title,
+                Description = lecture.Description,
+                LectureOrder = lecture.LectureOrder,
+                CreatedAt = lecture.CreatedAt
+            };
+
+            return CreatedAtAction(nameof(GetClassroomLectures), new { classroomId = classroomId }, lectureDto);
+        }
+
+        [HttpGet("classrooms/{classroomId}/lectures")]
         public async Task<ActionResult<IEnumerable<LectureContentDto>>> GetClassroomLectures(int classroomId)
         {
             var teacherId = GetCurrentUserId();
@@ -251,7 +249,7 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
                     Title = m.Title,
                     Description = m.Description,
                     MaterialType = m.MaterialType,
-                     Url = m.MaterialType == "Link" ? m.Url : null,
+                    Url = m.MaterialType == "Link" ? m.Url : null,
                     OriginalFilename = m.OriginalFilename,
                     FileSize = m.FileSize,
                     UploadedAt = m.UploadedAt
@@ -308,7 +306,7 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
                 Title = material.Title,
                 Description = material.Description,
                 MaterialType = material.MaterialType,
-                 Url = material.MaterialType == "Link" ? material.Url : null,
+                Url = material.MaterialType == "Link" ? material.Url : null,
                 OriginalFilename = material.OriginalFilename,
                 FileSize = material.FileSize,
                 UploadedAt = material.UploadedAt
@@ -330,7 +328,7 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
                 Title = m.Title,
                 Description = m.Description,
                 MaterialType = m.MaterialType,
-                 Url = m.MaterialType == "Link" ? m.Url : null,
+                Url = m.MaterialType == "Link" ? m.Url : null,
                 OriginalFilename = m.OriginalFilename,
                 FileSize = m.FileSize,
                 UploadedAt = m.UploadedAt
@@ -365,8 +363,9 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
 
             if (isFileProvided)
             {
-                var fileUrl = await _fileService.SaveFileAsync(materialDto.File, "lecture_materials");
-                material.Url = fileUrl;
+                var uploadResult = await _fileService.SaveFileAsync(materialDto.File, "lecture_materials");
+                material.Url = uploadResult.Url;
+                material.PublicId = uploadResult.PublicId;
                 material.MaterialType = "File";
                 material.OriginalFilename = materialDto.File.FileName;
                 material.FileSize = materialDto.File.Length;
@@ -408,9 +407,9 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
             if (classroom == null || classroom.TeacherId != teacherId) return Forbid();
             if (classroom.Status != ClassroomStatus.ACTIVE) return BadRequest(new { message = "لا يمكنك حذف مواد من فصل غير نشط." });
 
-            if (materialFromRepo.MaterialType == "File" && !string.IsNullOrEmpty(materialFromRepo.Url))
+            if (materialFromRepo.MaterialType == "File" && !string.IsNullOrEmpty(materialFromRepo.PublicId))
             {
-                await _fileService.DeleteFileAsync(materialFromRepo.Url);
+                await _fileService.DeleteFileAsync(materialFromRepo.PublicId);
             }
 
             _materialRepository.DeleteMaterial(materialFromRepo);
@@ -419,43 +418,43 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
             return NoContent();
         }
 
-        [HttpGet("materials/{materialId}/download")]
-        public async Task<IActionResult> DownloadMaterial(int materialId)
-        {
-             var teacherId = GetCurrentUserId();
-            if (teacherId == null) return Unauthorized(new { message = "معرّف المستخدم غير صالح." });
+        //[HttpGet("materials/{materialId}/download")]
+        //public async Task<IActionResult> DownloadMaterial(int materialId)
+        //{
+        //    var teacherId = GetCurrentUserId();
+        //    if (teacherId == null) return Unauthorized(new { message = "معرّف المستخدم غير صالح." });
 
-            var material = await _materialRepository.GetMaterialWithDeepDetailsAsync(materialId);
-            if (material == null || material.MaterialType != "File" || string.IsNullOrEmpty(material.Url))
-            {
-                return NotFound(new { message = "الملف غير موجود أو غير صالح للتحميل." });
-            }
+        //    var material = await _materialRepository.GetMaterialWithDeepDetailsAsync(materialId);
+        //    if (material == null || material.MaterialType != "File" || string.IsNullOrEmpty(material.Url))
+        //    {
+        //        return NotFound(new { message = "الملف غير موجود أو غير صالح للتحميل." });
+        //    }
 
-            bool hasAccess = false;
-            if (material.Lecture?.Classroom != null)
-            {
-                if (material.Lecture.Classroom.TeacherId == teacherId)
-                {
-                    hasAccess = true;
-                }
-            }
-            else if (material.Course != null)
-            {
-                bool teachesInThisCourse = (await _classroomRepository.GetClassroomsByCourseAsync(material.Course.CourseId))
-                                           .Any(c => c.TeacherId == teacherId);
-                if (teachesInThisCourse)
-                {
-                    hasAccess = true;
-                }
-            }
+        //    bool hasAccess = false;
+        //    if (material.Lecture?.Classroom != null)
+        //    {
+        //        if (material.Lecture.Classroom.TeacherId == teacherId)
+        //        {
+        //            hasAccess = true;
+        //        }
+        //    }
+        //    else if (material.Course != null)
+        //    {
+        //        bool teachesInThisCourse = (await _classroomRepository.GetClassroomsByCourseAsync(material.Course.CourseId))
+        //                                   .Any(c => c.TeacherId == teacherId);
+        //        if (teachesInThisCourse)
+        //        {
+        //            hasAccess = true;
+        //        }
+        //    }
 
-            if (!hasAccess)
-            {
-                return Forbid();
-            }
-            
-            return Redirect(material.Url);
-        }
+        //    if (!hasAccess)
+        //    {
+        //        return Forbid();
+        //    }
+
+        //    return Redirect(material.Url);
+        //}
         #endregion
 
         #region إدارة الطلاب والدرجات
@@ -620,6 +619,7 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
         }
 
         #endregion
+
         #region التحدي الأسبوعي (Weekly Challenge)
 
         [HttpGet("challenge/course/{courseId}/leaderboard")]
@@ -655,7 +655,7 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
         #endregion
 
         #region الدوال المساعدة الخاصة
-        private int? GetCurrentUserId() 
+        private int? GetCurrentUserId()
         {
             var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (int.TryParse(userIdClaim, out var userId))
@@ -674,4 +674,4 @@ public async Task<IActionResult> CreateLecture(int classroomId, [FromBody] Creat
         }
         #endregion
     }
- }
+}

@@ -1,11 +1,17 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
+using SmartSchoolAPI.DTOs.Auth;
 using SmartSchoolAPI.DTOs.User;
+using SmartSchoolAPI.Entities;
 using SmartSchoolAPI.Interfaces;
+using System;
+using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace SmartSchoolAPI.Controllers
 {
@@ -14,37 +20,59 @@ namespace SmartSchoolAPI.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IUserRepository _userRepo;
+        private readonly IProgramRegistrationRepository _registrationRepo;
         private readonly IConfiguration _config;
 
-        public AuthController(IUserRepository userRepo, IConfiguration config)
+        public AuthController(IUserRepository userRepo, IConfiguration config, IProgramRegistrationRepository registrationRepo)
         {
             _userRepo = userRepo;
             _config = config;
+            _registrationRepo = registrationRepo;
         }
 
         [HttpPost("login")]
+        [AllowAnonymous] // يجب أن تكون متاحة للعامة
         public async Task<IActionResult> Login(LoginDto loginDto)
         {
-             var user = await _userRepo.GetUserByEmailAsync(loginDto.Email);
-            if (user == null)
+            // 1. البحث في جدول المستخدمين الفعليين
+            var user = await _userRepo.GetUserByEmailAsync(loginDto.Email);
+            if (user != null)
             {
-                return Unauthorized("بيانات اعتماد غير صالحة.");  
+                if (BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
+                {
+                    var token = GenerateJwtToken(user);
+                    return Ok(new CheckStatusResponseDto
+                    {
+                        UserType = user.Role.ToString(),
+                        Token = token,
+                        FullName = $"{user.FirstName} {user.LastName}"
+                    });
+                }
             }
 
-            // 2. التحقق من كلمة المرور باستخدام BCrypt
-            if (!BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
+            // 2. البحث في جدول طلبات التسجيل
+            var registration = await _registrationRepo.GetPendingRegistrationByEmailAsync(loginDto.Email);
+            if (registration != null)
             {
-                return Unauthorized("بيانات اعتماد غير صالحة.");
+                if (BCrypt.Net.BCrypt.Verify(loginDto.Password, registration.PasswordHash))
+                {
+                    return Ok(new CheckStatusResponseDto
+                    {
+                        UserType = "Applicant",
+                        ApplicantStatus = registration.Status,
+                        RegistrationId = registration.RegistrationId,
+                        FullName = $"{registration.FirstName} {registration.LastName}"
+                    });
+                }
             }
 
-             var token = GenerateJwtToken(user);
-
-            return Ok(new { token }); 
+            // 3. إذا لم يتم العثور على أي شيء
+            return Unauthorized(new { message = "البريد الإلكتروني أو كلمة المرور غير صحيحة." });
         }
 
-        private string GenerateJwtToken(Entities.User user)
+        private string GenerateJwtToken(User user)
         {
-             var claims = new List<Claim>
+            var claims = new List<Claim>
             {
                 new Claim(JwtRegisteredClaimNames.Sub, user.UserId.ToString()),
                 new Claim(JwtRegisteredClaimNames.Email, user.Email),

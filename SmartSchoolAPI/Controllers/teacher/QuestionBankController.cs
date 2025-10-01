@@ -41,7 +41,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var course = await _courseRepo.GetCourseByIdAsync(courseId);
             if (course == null) return NotFound(new { message = "الدورة غير موجودة." });
 
-            // الصلاحية: فقط المنسق يمكنه عرض بنك الأسئلة
             if (course.CoordinatorId != teacherId)
             {
                 return Forbid();
@@ -78,7 +77,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var question = await _questionRepo.GetQuestionByIdAsync(questionId);
             if (question == null) return NotFound(new { message = "السؤال غير موجود." });
 
-            // الصلاحية: فقط منسق الدورة يمكنه المراجعة
             if (question.Course.CoordinatorId != teacherId)
             {
                 return Forbid();
@@ -105,19 +103,19 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var question = await _questionRepo.GetQuestionByIdAsync(questionId);
             if (question == null) return NotFound(new { message = "السؤال غير موجود." });
 
-             if (question.Course.CoordinatorId != teacherId)
+            if (question.Course.CoordinatorId != teacherId)
             {
                 return Forbid();
             }
 
-             if (question.Status == QuestionStatus.Pending)
+            if (question.Status == QuestionStatus.Pending)
             {
                 return BadRequest(new { message = "هذا السؤال لا يزال قيد المراجعة بالفعل." });
             }
 
-             question.Status = QuestionStatus.Pending;
-            question.ReviewedById = null;  
-            question.ReviewedAt = null;   
+            question.Status = QuestionStatus.Pending;
+            question.ReviewedById = null;
+            question.ReviewedAt = null;
 
             await _questionRepo.SaveChangesAsync();
 
@@ -128,7 +126,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
         #region عمليات مشتركة (المدرس والمنسق)
 
-
         [HttpGet("course/{courseId}/my-suggestions")]
         public async Task<ActionResult<IEnumerable<QuestionDto>>> GetMyPendingSuggestions(int courseId)
         {
@@ -138,10 +135,9 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var isAssociated = await _classroomRepo.IsTeacherAssociatedWithCourseAsync(teacherId.Value, courseId);
             if (!isAssociated)
             {
-                 var course = await _courseRepo.GetCourseByIdAsync(courseId);
+                var course = await _courseRepo.GetCourseByIdAsync(courseId);
                 if (course == null || course.CoordinatorId != teacherId)
                 {
-                   
                     if (!isAssociated) return Forbid();
                 }
             }
@@ -157,7 +153,7 @@ namespace SmartSchoolAPI.Controllers.Teacher
                 DifficultyLevel = q.DifficultyLevel,
                 Status = q.Status,
                 CreatedAt = q.CreatedAt,
-                 CreatedBy = "أنا",
+                CreatedBy = "أنا",
                 ReviewedBy = null,
                 Options = q.Options.Select(o => new QuestionOptionDto
                 {
@@ -169,7 +165,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
             return Ok(dtos);
         }
-
 
         [HttpPost("course/{courseId}/suggest")]
         public async Task<IActionResult> SuggestQuestionForCourse(int courseId, [FromForm] CreateQuestionDto createDto)
@@ -204,10 +199,11 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
             if (createDto.Image != null && createDto.Image.Length > 0)
             {
-                newQuestion.ImageUrl = await _fileService.SaveFileAsync(createDto.Image, "question_bank");
+                var uploadResult = await _fileService.SaveFileAsync(createDto.Image, "question_bank");
+                newQuestion.ImageUrl = uploadResult.Url;
+                newQuestion.ImagePublicId = uploadResult.PublicId;
             }
 
-            // المنسق يوافق على سؤاله تلقائيًا
             if (course.CoordinatorId == teacherId)
             {
                 newQuestion.Status = QuestionStatus.Approved;
@@ -246,18 +242,21 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
             if (!isCoordinator && !isCreatorOfPending) return Forbid();
 
-             if (updateDto.DeleteCurrentImage && !string.IsNullOrEmpty(question.ImageUrl))
+            if (updateDto.DeleteCurrentImage && !string.IsNullOrEmpty(question.ImagePublicId))
             {
-                await _fileService.DeleteFileAsync(question.ImageUrl);
+                await _fileService.DeleteFileAsync(question.ImagePublicId);
                 question.ImageUrl = null;
+                question.ImagePublicId = null;
             }
             else if (updateDto.NewImage != null && updateDto.NewImage.Length > 0)
             {
-                if (!string.IsNullOrEmpty(question.ImageUrl))
+                if (!string.IsNullOrEmpty(question.ImagePublicId))
                 {
-                    await _fileService.DeleteFileAsync(question.ImageUrl);
+                    await _fileService.DeleteFileAsync(question.ImagePublicId);
                 }
-                question.ImageUrl = await _fileService.SaveFileAsync(updateDto.NewImage, "question_bank");
+                var uploadResult = await _fileService.SaveFileAsync(updateDto.NewImage, "question_bank");
+                question.ImageUrl = uploadResult.Url;
+                question.ImagePublicId = uploadResult.PublicId;
             }
 
             question.Text = updateDto.Text;
@@ -295,7 +294,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
             return BadRequest(new { message = "فشل في تحديث السؤال." });
         }
 
-
         [HttpDelete("questions/{questionId}")]
         public async Task<IActionResult> DeleteQuestion(int questionId)
         {
@@ -305,7 +303,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var question = await _questionRepo.GetQuestionByIdAsync(questionId);
             if (question == null) return NotFound();
 
-            // الصلاحية: إما أن يكون منسق الدورة، أو منشئ السؤال طالما أنه قيد المراجعة
             bool isCoordinator = question.Course.CoordinatorId == teacherId;
             bool isCreatorOfPending = question.CreatedById == teacherId && question.Status == QuestionStatus.Pending;
 
@@ -314,9 +311,9 @@ namespace SmartSchoolAPI.Controllers.Teacher
                 return Forbid();
             }
 
-            if (!string.IsNullOrEmpty(question.ImageUrl))
+            if (!string.IsNullOrEmpty(question.ImagePublicId))
             {
-                await _fileService.DeleteFileAsync(question.ImageUrl);
+                await _fileService.DeleteFileAsync(question.ImagePublicId);
             }
 
             _questionRepo.DeleteQuestion(question);

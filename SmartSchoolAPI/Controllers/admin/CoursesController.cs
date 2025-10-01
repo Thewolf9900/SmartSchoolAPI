@@ -35,6 +35,7 @@ namespace SmartSchoolAPI.Controllers.Admin
             {
                 CourseId = c.CourseId,
                 Name = c.Name,
+                Price = c.Price, 
                 AcademicProgramId = c.AcademicProgramId,
                 AcademicProgramName = c.AcademicProgram?.Name ?? "N/A",
                 CoordinatorId = c.CoordinatorId,
@@ -55,6 +56,7 @@ namespace SmartSchoolAPI.Controllers.Admin
             {
                 CourseId = course.CourseId,
                 Name = course.Name,
+                Price = course.Price, 
                 AcademicProgramId = course.AcademicProgramId,
                 AcademicProgramName = course.AcademicProgram?.Name ?? "N/A",
                 CoordinatorId = course.CoordinatorId,
@@ -80,6 +82,7 @@ namespace SmartSchoolAPI.Controllers.Admin
             {
                 Name = createDto.Name,
                 AcademicProgramId = createDto.AcademicProgramId,
+                Price = createDto.Price,  
                 CreatedAt = System.DateTime.UtcNow
             };
 
@@ -90,8 +93,11 @@ namespace SmartSchoolAPI.Controllers.Admin
             {
                 CourseId = courseEntity.CourseId,
                 Name = courseEntity.Name,
+                Price = courseEntity.Price,
                 AcademicProgramId = courseEntity.AcademicProgramId,
-                AcademicProgramName = program.Name
+                AcademicProgramName = program.Name,
+                CoordinatorId = courseEntity.CoordinatorId,
+                CoordinatorName = courseEntity.Coordinator != null ? $"{courseEntity.Coordinator.FirstName} {courseEntity.Coordinator.LastName}" : "غير معين"
             };
             return CreatedAtAction(nameof(GetCourseById), new { id = courseEntity.CourseId }, courseToReturn);
         }
@@ -105,7 +111,8 @@ namespace SmartSchoolAPI.Controllers.Admin
                 return NotFound(new { message = "لم يتم العثور على الدورة." });
             }
 
-             courseFromRepo.Name = updateDto.Name;
+            courseFromRepo.Name = updateDto.Name;
+            courseFromRepo.Price = updateDto.Price;  
 
             await _courseRepo.SaveChangesAsync();
             return NoContent();
@@ -138,17 +145,17 @@ namespace SmartSchoolAPI.Controllers.Admin
 
             if (!success)
             {
-                // رسالة الخطأ تأتي مباشرة من المستودع (مثل "الدورة غير موجودة")
                 return BadRequest(new { message = errorMessage });
             }
 
             if (await _courseRepo.SaveChangesAsync())
             {
-                return NoContent(); // تم التعيين بنجاح
+                return NoContent();
             }
 
             return BadRequest(new { message = "حدث خطأ أثناء حفظ التغييرات." });
         }
+
         [HttpDelete("{id}/unassign-coordinator")]
         public async Task<IActionResult> UnassignCoordinatorFromCourse(int id)
         {
@@ -160,7 +167,7 @@ namespace SmartSchoolAPI.Controllers.Admin
 
             if (await _courseRepo.SaveChangesAsync())
             {
-                return NoContent(); // تم الإلغاء بنجاح
+                return NoContent();
             }
 
             return BadRequest(new { message = "حدث خطأ أثناء حفظ التغييرات." });

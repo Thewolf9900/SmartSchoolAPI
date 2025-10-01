@@ -45,7 +45,7 @@ namespace SmartSchoolAPI.Controllers.Teacher
             {
                 Title = createDto.Title,
                 LectureId = lectureId,
-                IsEnabled = false // الاختبار يبدأ دائمًا في حالة غير مفعلة
+                IsEnabled = false
             };
 
             await _quizRepo.CreateQuizAsync(newQuiz);
@@ -105,15 +105,19 @@ namespace SmartSchoolAPI.Controllers.Teacher
                 return Forbid();
             }
 
-            if (quiz.IsEnabled)
-            {
-                return BadRequest(new { message = "الاختبار مفعل بالفعل ولا يمكن تغيير حالته." });
-            }
+            // --- هنا التعديل ---
+            // نقوم بعكس الحالة الحالية للاختبار
+            quiz.IsEnabled = !quiz.IsEnabled;
 
-            quiz.IsEnabled = true;
             await _quizRepo.SaveChangesAsync();
 
-            return Ok(new { message = "تم تفعيل الاختبار بنجاح. لن تتمكن من تعديله بعد الآن." });
+            // نقوم بإرسال رسالة توضيحية بناءً على الحالة الجديدة
+            var message = quiz.IsEnabled
+                ? "تم تفعيل الاختبار بنجاح. لن يتمكن الطلاب من رؤيته ولن تتمكن من تعديله بعد الآن."
+                : "تم إيقاف تفعيل الاختبار بنجاح. يمكنك الآن تعديله مرة أخرى.";
+
+            // من الأفضل إرجاع الحالة الجديدة للواجهة الأمامية
+            return Ok(new { message = message, isEnabled = quiz.IsEnabled });
         }
 
         [HttpPost("{quizId}/questions")]
@@ -128,7 +132,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var lecture = await _lectureRepo.GetLectureByIdAsync(quiz.LectureId);
             if (!await IsTeacherOfLectureAsync(teacherId, lecture)) return Forbid();
 
-            // --- ✨ الإضافة هنا: الحماية من التعديل ---
             if (quiz.IsEnabled)
             {
                 return BadRequest(new { message = "لا يمكن إضافة أسئلة إلى اختبار تم تفعيله." });
@@ -152,7 +155,9 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
             if (createDto.Image != null && createDto.Image.Length > 0)
             {
-                newQuestion.ImageUrl = await _fileService.SaveFileAsync(createDto.Image, "quiz_questions");
+                var uploadResult = await _fileService.SaveFileAsync(createDto.Image, "quiz_questions");
+                newQuestion.ImageUrl = uploadResult.Url;
+                newQuestion.ImagePublicId = uploadResult.PublicId;
             }
 
             await _quizRepo.CreateQuestionAsync(newQuestion);
@@ -173,7 +178,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var lecture = await _lectureRepo.GetLectureByIdAsync(question.LectureQuiz.LectureId);
             if (!await IsTeacherOfLectureAsync(teacherId, lecture)) return Forbid();
 
-            // --- ✨ الإضافة هنا: الحماية من التعديل ---
             if (question.LectureQuiz.IsEnabled)
             {
                 return BadRequest(new { message = "لا يمكن تعديل سؤال في اختبار تم تفعيله." });
@@ -226,24 +230,20 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var lecture = await _lectureRepo.GetLectureByIdAsync(question.LectureQuiz.LectureId);
             if (!await IsTeacherOfLectureAsync(teacherId, lecture)) return Forbid();
 
-            // --- ✨ الإضافة هنا: الحماية من التعديل ---
             if (question.LectureQuiz.IsEnabled)
             {
                 return BadRequest(new { message = "لا يمكن حذف سؤال من اختبار تم تفعيله." });
             }
 
-            _quizRepo.DeleteQuestion(question);
-
-            if (!string.IsNullOrEmpty(question.ImageUrl))
+            if (!string.IsNullOrEmpty(question.ImagePublicId))
             {
-                await _fileService.DeleteFileAsync(question.ImageUrl);
+                await _fileService.DeleteFileAsync(question.ImagePublicId);
             }
 
+            _quizRepo.DeleteQuestion(question);
             await _quizRepo.SaveChangesAsync();
             return NoContent();
         }
-
-
 
         [HttpDelete("{quizId}")]
         public async Task<IActionResult> DeleteQuiz(int quizId)
@@ -255,7 +255,6 @@ namespace SmartSchoolAPI.Controllers.Teacher
             var lecture = await _lectureRepo.GetLectureByIdAsync(quiz.LectureId);
             if (!await IsTeacherOfLectureAsync(teacherId, lecture)) return Forbid();
 
-            // --- ✨ الإضافة هنا: الحماية من التعديل ---
             if (quiz.IsEnabled)
             {
                 return BadRequest(new { message = "لا يمكن حذف اختبار تم تفعيله." });
@@ -263,9 +262,9 @@ namespace SmartSchoolAPI.Controllers.Teacher
 
             foreach (var question in quiz.Questions)
             {
-                if (!string.IsNullOrEmpty(question.ImageUrl))
+                if (!string.IsNullOrEmpty(question.ImagePublicId))
                 {
-                    await _fileService.DeleteFileAsync(question.ImageUrl);
+                    await _fileService.DeleteFileAsync(question.ImagePublicId);
                 }
             }
 

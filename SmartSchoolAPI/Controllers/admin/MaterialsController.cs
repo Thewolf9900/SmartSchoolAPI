@@ -6,6 +6,7 @@ using SmartSchoolAPI.Entities;
 using SmartSchoolAPI.Interfaces;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http; // تمت إضافته
 using System.Threading.Tasks;
 
 namespace SmartSchoolAPI.Controllers.Admin
@@ -18,12 +19,14 @@ namespace SmartSchoolAPI.Controllers.Admin
         private readonly IMaterialRepository _materialRepo;
         private readonly ICourseRepository _courseRepo;
         private readonly IFileService _fileService;
+        private readonly IHttpClientFactory _httpClientFactory; // تمت إضافته
 
-        public MaterialsController(IMaterialRepository materialRepo, ICourseRepository courseRepo, IFileService fileService)
+        public MaterialsController(IMaterialRepository materialRepo, ICourseRepository courseRepo, IFileService fileService, IHttpClientFactory httpClientFactory) // تم تعديله
         {
             _materialRepo = materialRepo;
             _courseRepo = courseRepo;
             _fileService = fileService;
+            _httpClientFactory = httpClientFactory; // تمت إضافته
         }
 
         [HttpGet("from-course/{courseId}")]
@@ -58,14 +61,25 @@ namespace SmartSchoolAPI.Controllers.Admin
                 return NotFound(new { message = "الملف غير موجود أو غير صالح للتحميل." });
             }
 
-            var (fileBytes, contentType, fileName) = _fileService.GetPhysicalFile(material.Url);
-            if (fileBytes == null)
+            // المنطق الجديد: تحميل الملف من الرابط وإعادته للمستخدم
+            try
             {
-                return NotFound(new { message = "تعذر العثور على الملف الفعلي على الخادم." });
-            }
+                var client = _httpClientFactory.CreateClient();
+                var fileBytes = await client.GetByteArrayAsync(material.Url);
+                var downloadName = material.OriginalFilename ?? Path.GetFileName(new System.Uri(material.Url).LocalPath);
 
-            var downloadName = material.OriginalFilename ?? fileName;
-            return File(fileBytes, contentType, downloadName);
+                // تحديد نوع المحتوى بشكل افتراضي إذا لم يكن متوفراً
+                var contentType = "application/octet-stream";
+                if (downloadName.EndsWith(".pdf")) contentType = "application/pdf";
+                if (downloadName.EndsWith(".png")) contentType = "image/png";
+                if (downloadName.EndsWith(".jpg") || downloadName.EndsWith(".jpeg")) contentType = "image/jpeg";
+
+                return File(fileBytes, contentType, downloadName);
+            }
+            catch (System.Exception)
+            {
+                return StatusCode(500, new { message = "فشل تحميل الملف من الخدمة السحابية." });
+            }
         }
 
         [HttpPost("for-course/{courseId}")]
@@ -92,7 +106,11 @@ namespace SmartSchoolAPI.Controllers.Admin
             if (createDto.File != null)
             {
                 materialEntity.MaterialType = "File";
-                materialEntity.Url = await _fileService.SaveFileAsync(createDto.File, "course-materials");
+
+                var uploadResult = await _fileService.SaveFileAsync(createDto.File, "course-materials");
+                materialEntity.Url = uploadResult.Url;
+                materialEntity.PublicId = uploadResult.PublicId;
+
                 materialEntity.OriginalFilename = createDto.File.FileName;
                 materialEntity.FileSize = createDto.File.Length;
             }
@@ -137,9 +155,9 @@ namespace SmartSchoolAPI.Controllers.Admin
                 return Forbid("يمكن للمديرين حذف المواد المرجعية على مستوى الدورة فقط.");
             }
 
-            if (material.MaterialType == "File" && !string.IsNullOrEmpty(material.Url))
+            if (material.MaterialType == "File" && !string.IsNullOrEmpty(material.PublicId))
             {
-                await _fileService.DeleteFileAsync(material.Url);
+                await _fileService.DeleteFileAsync(material.PublicId);
             }
 
             _materialRepo.DeleteMaterial(material);

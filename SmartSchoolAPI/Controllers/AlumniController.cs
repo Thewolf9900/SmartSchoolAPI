@@ -1,8 +1,10 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using SmartSchoolAPI.DTOs.Alumni;
 using SmartSchoolAPI.Interfaces;
+using System; 
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http; 
 using System.Threading.Tasks;
 
 namespace SmartSchoolAPI.Controllers
@@ -12,10 +14,12 @@ namespace SmartSchoolAPI.Controllers
     public class AlumniController : ControllerBase
     {
         private readonly IGraduationRepository _graduationRepo;
+        private readonly IHttpClientFactory _httpClientFactory;  
 
-        public AlumniController(IGraduationRepository graduationRepo)
+        public AlumniController(IGraduationRepository graduationRepo, IHttpClientFactory httpClientFactory) // تم تعديله
         {
             _graduationRepo = graduationRepo;
+            _httpClientFactory = httpClientFactory;  
         }
 
         [HttpGet("records")]
@@ -41,19 +45,29 @@ namespace SmartSchoolAPI.Controllers
 
             return Ok(recordsDto);
         }
+
         [HttpGet("certificate/{graduationId}")]
         public async Task<IActionResult> DownloadCertificate(int graduationId)
         {
-        
             var graduationRecord = await _graduationRepo.GetGraduationByIdAsync(graduationId);
 
-             if (graduationRecord == null || graduationRecord.Certificate == null)
+            if (graduationRecord?.Certificate == null || string.IsNullOrWhiteSpace(graduationRecord.Certificate.CertificateUrl))
             {
                 return NotFound(new { message = "لم يتم العثور على الشهادة المطلوبة." });
             }
 
-             var certificate = graduationRecord.Certificate;
-            return File(certificate.CertificateData, certificate.FileType, certificate.FileName);
+            var certificate = graduationRecord.Certificate;
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                var fileBytes = await client.GetByteArrayAsync(certificate.CertificateUrl);
+                return File(fileBytes, certificate.FileType, certificate.FileName);
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, new { message = "فشل تحميل ملف الشهادة من الخدمة السحابية." });
+            }
         }
     }
 }

@@ -37,6 +37,8 @@ namespace SmartSchoolAPI.Data
         public DbSet<ChatConversation> ChatConversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
 
+        public DbSet<ProgramRegistration> ProgramRegistrations { get; set; }
+        public DbSet<PaymentSettings> PaymentSettings { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -50,6 +52,8 @@ namespace SmartSchoolAPI.Data
             modelBuilder.Entity<User>().Property(u => u.Role).HasConversion<string>();
             modelBuilder.Entity<Announcement>().Property(a => a.TargetScope).HasConversion<string>();
             modelBuilder.Entity<Classroom>().Property(c => c.Status).HasConversion<string>();
+            modelBuilder.Entity<ProgramRegistration>().Property(r => r.Status).HasConversion<string>();
+
 
             modelBuilder.Entity<Question>()
                 .HasOne(q => q.CreatedBy)

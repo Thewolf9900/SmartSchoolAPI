@@ -1,40 +1,39 @@
 ﻿using Microsoft.AspNetCore.Http;
+using SmartSchoolAPI.DTOs; // تأكد من إنشاء DTOs/FileUploadResult.cs أولاً
+using System.Threading.Tasks;
 
 namespace SmartSchoolAPI.Interfaces
 {
     /// <summary>
-    /// يُعرّف العقد الخاص بالخدمات المسؤولة عن التعامل مع نظام الملفات،
-    /// بما في ذلك الحفظ، الحذف، واستخلاص المحتوى.
+    /// يُعرّف العقد الخاص بالخدمات المسؤولة عن التعامل مع الملفات،
+    /// مع التركيز على عمليات التخزين السحابي (Cloudinary).
     /// </summary>
     public interface IFileService
     {
         /// <summary>
-        /// يقرأ محتوى ملف بشكل غير متزامن ويستخلص منه نصًا.
-        /// يمكن أن يتضمن التنفيذ منطقًا متقدمًا للتعامل مع أنواع ملفات مختلفة مثل PDF.
+        /// يقرأ محتوى ملف بشكل غير متزامن ويستخلص منه نصًا للتحليل.
         /// </summary>
         /// <param name="file">الملف المراد قراءته.</param>
         /// <returns>مهمة تمثل سلسلة نصية تحتوي على محتوى الملف أو عينة منه.</returns>
         Task<string> ReadFileContentAsync(IFormFile file);
 
         /// <summary>
-        /// يحفظ ملفًا في الخادم بشكل غير متزامن ضمن مجلد فرعي محدد.
+        /// يرفع ملفًا إلى خدمة التخزين السحابي ويعيد تفاصيله.
         /// </summary>
-        /// <param name="file">الملف المراد حفظه.</param>
-        /// <param name="subfolder">اسم المجلد الفرعي داخل مجلد 'uploads'.</param>
-        /// <returns>مهمة تمثل المسار النسبي للملف المحفوظ.</returns>
-        Task<string> SaveFileAsync(IFormFile file, string subfolder);
+        /// <param name="file">الملف المراد رفعه.</param>
+        /// <param name="subfolder">المجلد الفرعي داخل Cloudinary لتنظيم الملفات.</param>
+        /// <returns>مهمة تمثل كائنًا يحتوي على رابط الملف العام (Url) والمعرف الفريد (PublicId).</returns>
+        Task<FileUploadResult> SaveFileAsync(IFormFile file, string subfolder);
 
         /// <summary>
-        /// يحذف ملفًا ماديًا من الخادم بناءً على مساره النسبي.
+        /// يحذف ملفًا من خدمة التخزين السحابي باستخدام المعرف الفريد الخاص به.
         /// </summary>
-        /// <param name="relativePath">المسار النسبي للملف (e.g., 'uploads/folder/file.jpg').</param>
-        Task DeleteFileAsync(string fileUrl);
+        /// <param name="publicId">المعرف الفريد (PublicId) للملف في Cloudinary.</param>
+        Task DeleteFileAsync(string publicId);
 
         /// <summary>
-        /// يسترجع بيانات ملف مادي (بايتات، نوع المحتوى، اسم الملف) من الخادم.
+        /// (مهملة) لم تعد هذه الدالة مدعومة لأن الملفات مخزنة سحابيًا ولا يوجد وصول مباشر للملفات المادية.
         /// </summary>
-        /// <param name="relativePath">المسار النسبي للملف.</param>
-        /// <returns>Tuple يحتوي على بيانات الملف أو قيم null إذا لم يتم العثور عليه.</returns>
         (byte[] fileBytes, string contentType, string fileName) GetPhysicalFile(string relativePath);
     }
 }

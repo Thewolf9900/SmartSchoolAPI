@@ -28,6 +28,15 @@ namespace SmartSchoolAPI.Repositories
              return await _context.AcademicPrograms.AsNoTracking().ToListAsync();
         }
 
+        public async Task<IEnumerable<AcademicProgram>> GetProgramsOpenForRegistrationAsync()
+        {
+            return await _context.AcademicPrograms
+                .Include(p => p.Courses)
+                .Where(p => p.IsRegistrationOpen)
+                .ToListAsync();
+        }
+
+
         #endregion
 
         #region عمليات الكتابة (Write Operations)

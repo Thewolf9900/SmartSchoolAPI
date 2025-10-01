@@ -16,7 +16,11 @@ namespace SmartSchoolAPI.Entities
 
         [Column("image_url")]
         [StringLength(512)]
-        public string? ImageUrl { get; set; } 
+        public string? ImageUrl { get; set; }
+
+        [Column("image_public_id")]
+        [StringLength(255)]
+        public string? ImagePublicId { get; set; } = null;
 
         [Required]
         [Column("question_type", TypeName = "varchar(50)")]

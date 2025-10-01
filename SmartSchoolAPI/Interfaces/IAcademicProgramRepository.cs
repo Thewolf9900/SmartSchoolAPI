@@ -14,6 +14,11 @@ namespace SmartSchoolAPI.Interfaces
         Task<AcademicProgram?> GetProgramByIdAsync(int programId);
         Task<IEnumerable<AcademicProgram>> GetAllProgramsAsync();
 
+        Task<IEnumerable<AcademicProgram>> GetProgramsOpenForRegistrationAsync();
+
+
+ 
+
         #endregion
 
         #region عمليات الكتابة (Write Operations)

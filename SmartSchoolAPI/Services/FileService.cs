@@ -1,11 +1,11 @@
 ﻿using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using Microsoft.Extensions.Options;
+using SmartSchoolAPI.DTOs; // تمت إضافة هذا
 using SmartSchoolAPI.Interfaces;
 using SmartSchoolAPI.Settings;
 using System.Text;
 using UglyToad.PdfPig;
-using UglyToad.PdfPig.Content;
 
 namespace SmartSchoolAPI.Services
 {
@@ -36,6 +36,7 @@ namespace SmartSchoolAPI.Services
         }
 
         #region استخلاص المحتوى للذكاء الاصطناعي
+        // لا يوجد تغيير في هذا القسم
         public async Task<string> ReadFileContentAsync(IFormFile file)
         {
             if (file == null || file.Length == 0)
@@ -97,65 +98,61 @@ namespace SmartSchoolAPI.Services
         }
         #endregion
 
-        #region عمليات نظام الملفات
+        #region عمليات نظام الملفات (تم التعديل هنا)
+
         /// <summary>
-        /// يرفع ملفًا إلى خدمة التخزين السحابي Cloudinary.
+        /// يرفع ملفًا إلى خدمة التخزين السحابي ويعيد تفاصيله.
         /// </summary>
         /// <param name="file">الملف المراد رفعه.</param>
-        /// <param name="subfolder">اسم المجلد الفرعي داخل Cloudinary لتنظيم الملفات.</param>
-        /// <returns>رابط URL الآمن للملف الذي تم رفعه.</returns>
-        public async Task<string> SaveFileAsync(IFormFile file, string subfolder)
+        /// <param name="subfolder">المجلد الفرعي داخل Cloudinary لتنظيم الملفات.</param>
+        /// <returns>مهمة تمثل كائنًا يحتوي على رابط الملف العام (Url) والمعرف الفريد (PublicId).</returns>
+        public async Task<FileUploadResult> SaveFileAsync(IFormFile file, string subfolder)
         {
             if (file == null || file.Length == 0)
             {
                 throw new ArgumentException("الملف فارغ أو غير موجود.", nameof(file));
             }
 
-            UploadResult uploadResult;
             await using var stream = file.OpenReadStream();
             var folderPath = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general";
 
-            if (file.ContentType.StartsWith("image/") || file.ContentType.StartsWith("video/"))
+            var uploadParams = new RawUploadParams
             {
-                var uploadParams = new AutoUploadParams()
-                {
-                    File = new FileDescription(file.FileName, stream),
-                    Folder = folderPath,
-                };
-                uploadResult = await _cloudinary.UploadAsync(uploadParams);
-            }
-            else
-            {
-                var uploadParams = new RawUploadParams()
-                {
-                    File = new FileDescription(file.FileName, stream),
-                    Folder = folderPath,
-                    AccessMode = "public"
-                };
-                uploadResult = await _cloudinary.UploadAsync(uploadParams);
-            }
+                File = new FileDescription(file.FileName, stream),
+                Folder = folderPath,
+                UseFilename = true,
+                UniqueFilename = true,
+                Overwrite = false
+            };
+
+            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
 
             if (uploadResult.Error != null)
             {
                 throw new Exception($"فشل رفع الملف إلى Cloudinary: {uploadResult.Error.Message}");
             }
 
-            // --- ✅ الحل الصحيح والبسيط ---
-            // بما أننا أضفنا AccessMode = "public"، فإن هذا الرابط سيعمل بشكل صحيح الآن.
-            return uploadResult.SecureUrl.ToString();
+            return new FileUploadResult
+            {
+                Url = uploadResult.SecureUrl.ToString(),
+                PublicId = uploadResult.PublicId
+            };
         }
 
         /// <summary>
-        /// يحذف ملفًا من خدمة التخزين السحابي Cloudinary بناءً على رابطه.
+        /// يحذف ملفًا من خدمة التخزين السحابي باستخدام المعرف الفريد الخاص به.
         /// </summary>
-        /// <param name="fileUrl">رابط URL الكامل للملف على Cloudinary.</param>
-        public async Task DeleteFileAsync(string fileUrl)
+        /// <param name="publicId">المعرف الفريد (PublicId) للملف في Cloudinary.</param>
+        public async Task DeleteFileAsync(string publicId)
         {
-            // ... (هذا الكود لم يتغير)
+            if (string.IsNullOrWhiteSpace(publicId)) return;
+
+            var deletionParams = new DeletionParams(publicId) { ResourceType = ResourceType.Raw };
+            await _cloudinary.DestroyAsync(deletionParams);
         }
 
         /// <summary>
-        /// (مهملة) يسترجع بيانات ملف مادي.
+        /// (مهملة) لم تعد هذه الدالة مدعومة لأن الملفات مخزنة سحابيًا ولا يوجد وصول مباشر للملفات المادية.
         /// </summary>
         public (byte[] fileBytes, string contentType, string fileName) GetPhysicalFile(string relativePath)
         {

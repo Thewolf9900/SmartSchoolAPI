@@ -8,6 +8,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net.Http; // تمت إضافته
 using System.Threading.Tasks;
 
 namespace SmartSchoolAPI.Controllers.Admin
@@ -21,14 +22,18 @@ namespace SmartSchoolAPI.Controllers.Admin
         private readonly IUserRepository _userRepo;
         private readonly ICourseRepository _courseRepo;
         private readonly IAcademicProgramRepository _programRepo;
+        private readonly IFileService _fileService; // تمت إضافته
+        private readonly IHttpClientFactory _httpClientFactory; // تمت إضافته
 
         public GraduationController(IGraduationRepository graduationRepo, IUserRepository userRepo,
-            ICourseRepository courseRepo, IAcademicProgramRepository programRepo)
+            ICourseRepository courseRepo, IAcademicProgramRepository programRepo, IFileService fileService, IHttpClientFactory httpClientFactory) // تم تعديله
         {
             _graduationRepo = graduationRepo;
             _userRepo = userRepo;
             _courseRepo = courseRepo;
             _programRepo = programRepo;
+            _fileService = fileService; // تمت إضافته
+            _httpClientFactory = httpClientFactory; // تمت إضافته
         }
 
         #region عملية التخرج والرسوب
@@ -113,7 +118,7 @@ namespace SmartSchoolAPI.Controllers.Admin
 
             await _graduationRepo.SaveChangesAsync();
 
-             return Ok(new { message = $"اكتملت المعالجة. عدد الخريجين الجدد: {newGraduates.Count}، عدد الراسبين الجدد: {newFailures.Count}." });
+            return Ok(new { message = $"اكتملت المعالجة. عدد الخريجين الجدد: {newGraduates.Count}، عدد الراسبين الجدد: {newFailures.Count}." });
         }
 
         #endregion
@@ -168,10 +173,19 @@ namespace SmartSchoolAPI.Controllers.Admin
         public async Task<IActionResult> GetCertificate(int graduationId)
         {
             var graduation = await _graduationRepo.GetGraduationByIdAsync(graduationId);
-            if (graduation?.Certificate == null)
+            if (graduation?.Certificate == null || string.IsNullOrWhiteSpace(graduation.Certificate.CertificateUrl))
                 return NotFound(new { message = "لم يتم العثور على الشهادة." });
 
-            return File(graduation.Certificate.CertificateData, graduation.Certificate.FileType, graduation.Certificate.FileName);
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                var fileBytes = await client.GetByteArrayAsync(graduation.Certificate.CertificateUrl);
+                return File(fileBytes, graduation.Certificate.FileType, graduation.Certificate.FileName);
+            }
+            catch (Exception)
+            {
+                return StatusCode(500, new { message = "فشل تحميل ملف الشهادة من الخدمة السحابية." });
+            }
         }
 
         [HttpPost("{graduationId}/upload-certificate")]
@@ -184,15 +198,15 @@ namespace SmartSchoolAPI.Controllers.Admin
             if (graduation == null) return NotFound(new { message = "لم يتم العثور على سجل التخرج." });
             if (graduation.Certificate != null) return BadRequest(new { message = "تم رفع شهادة بالفعل. يرجى حذف القديمة أولاً." });
 
-            using var memoryStream = new MemoryStream();
-            await file.CopyToAsync(memoryStream);
+            var uploadResult = await _fileService.SaveFileAsync(file, "certificates");
 
             var certificate = new GraduationCertificate
             {
                 GraduationId = graduationId,
                 FileName = file.FileName,
                 FileType = file.ContentType,
-                CertificateData = memoryStream.ToArray()
+                CertificateUrl = uploadResult.Url,
+                PublicId = uploadResult.PublicId
             };
 
             await _graduationRepo.AddCertificateAsync(certificate);
@@ -205,8 +219,10 @@ namespace SmartSchoolAPI.Controllers.Admin
         public async Task<IActionResult> DeleteCertificate(int graduationId)
         {
             var graduation = await _graduationRepo.GetGraduationByIdAsync(graduationId);
-            if (graduation?.Certificate == null)
+            if (graduation?.Certificate == null || string.IsNullOrWhiteSpace(graduation.Certificate.PublicId))
                 return NotFound(new { message = "لم يتم العثور على الشهادة." });
+
+            await _fileService.DeleteFileAsync(graduation.Certificate.PublicId);
 
             await _graduationRepo.DeleteCertificateAsync(graduationId);
             await _graduationRepo.SaveChangesAsync();

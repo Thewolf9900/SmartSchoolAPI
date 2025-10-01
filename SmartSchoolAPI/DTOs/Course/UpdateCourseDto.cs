@@ -6,6 +6,10 @@ namespace SmartSchoolAPI.DTOs.Course
     {
         [Required(ErrorMessage = "Course name is required.")]
         [MaxLength(255)]
-        public string Name { get; set; }=string.Empty;
+        public string Name { get; set; } = string.Empty;
+
+         [Required(ErrorMessage = "Price is required.")]
+        [Range(0, 99999999.99, ErrorMessage = "Price must be a non-negative value.")]
+        public decimal Price { get; set; }
     }
 }

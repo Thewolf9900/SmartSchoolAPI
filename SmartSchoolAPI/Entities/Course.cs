@@ -20,6 +20,9 @@ namespace SmartSchoolAPI.Entities
         [Column("created_at")]
         public DateTime CreatedAt { get; set; }
 
+        [Column("price", TypeName = "numeric(10, 2)")]
+        public decimal Price { get; set; }
+
         // --- Foreign Keys ---
         [Required]
         [Column("academic_program_id")]
