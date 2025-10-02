@@ -115,9 +115,27 @@ namespace SmartSchoolAPI.Services
             await using var stream = file.OpenReadStream();
             var folderPath = !string.IsNullOrWhiteSpace(subfolder) ? $"smart-school/{subfolder}" : "smart-school/general";
 
-            var uploadParams = new RawUploadParams
+            var fileExtension = Path.GetExtension(file.FileName).ToLower();
+
+            if (IsImageFile(fileExtension) || fileExtension == ".pdf")
             {
-                File = new FileDescription(file.FileName, stream),
+                return await UploadImageAsync(file.FileName, stream, folderPath);
+            }
+            else if (IsVideoFile(fileExtension))
+            {
+                return await UploadVideoAsync(file.FileName, stream, folderPath);
+            }
+            else
+            {
+                throw new ArgumentException("نوع الملف غير مدعوم");
+            }
+        }
+
+        private async Task<FileUploadResult> UploadImageAsync(string fileName, Stream stream, string folderPath)
+        {
+            var uploadParams = new ImageUploadParams
+            {
+                File = new FileDescription(fileName, stream),
                 Folder = folderPath,
                 UseFilename = true,
                 UniqueFilename = true,
@@ -125,11 +143,31 @@ namespace SmartSchoolAPI.Services
             };
 
             var uploadResult = await _cloudinary.UploadLargeAsync(uploadParams);
+            return CreateResult(uploadResult);
+        }
+
+        private async Task<FileUploadResult> UploadVideoAsync(string fileName, Stream stream, string folderPath)
+        {
+            var uploadParams = new VideoUploadParams
+            {
+                File = new FileDescription(fileName, stream),
+                Folder = folderPath,
+                UseFilename = true,
+                UniqueFilename = true,
+                Overwrite = false
+            };
+
+            var uploadResult = await _cloudinary.UploadLargeAsync(uploadParams);
+            return CreateResult(uploadResult);
+        }
 
 
+
+        private FileUploadResult CreateResult(UploadResult uploadResult)
+        {
             if (uploadResult.Error != null)
             {
-                throw new Exception($"فشل رفع الملف إلى Cloudinary: {uploadResult.Error.Message}");
+                throw new Exception($"فشل رفع الملف: {uploadResult.Error.Message}");
             }
 
             return new FileUploadResult
@@ -137,6 +175,18 @@ namespace SmartSchoolAPI.Services
                 Url = uploadResult.SecureUrl.ToString(),
                 PublicId = uploadResult.PublicId
             };
+        }
+
+        private bool IsImageFile(string extension)
+        {
+            var imageExtensions = new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff" };
+            return imageExtensions.Contains(extension);
+        }
+
+        private bool IsVideoFile(string extension)
+        {
+            var videoExtensions = new[] { ".mp4", ".avi", ".mov", ".wmv", ".flv", ".webm", ".mkv" };
+            return videoExtensions.Contains(extension);
         }
 
         /// <summary>
