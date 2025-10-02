@@ -36,8 +36,7 @@ namespace SmartSchoolAPI.Services
         }
 
         #region استخلاص المحتوى للذكاء الاصطناعي
-        // لا يوجد تغيير في هذا القسم
-        public async Task<string> ReadFileContentAsync(IFormFile file)
+         public async Task<string> ReadFileContentAsync(IFormFile file)
         {
             if (file == null || file.Length == 0)
             {
@@ -151,13 +150,7 @@ namespace SmartSchoolAPI.Services
             await _cloudinary.DestroyAsync(deletionParams);
         }
 
-        /// <summary>
-        /// (مهملة) لم تعد هذه الدالة مدعومة لأن الملفات مخزنة سحابيًا ولا يوجد وصول مباشر للملفات المادية.
-        /// </summary>
-        public (byte[] fileBytes, string contentType, string fileName) GetPhysicalFile(string relativePath)
-        {
-            throw new NotSupportedException("الملفات لم تعد مخزنة محليًا.");
-        }
+        
         #endregion
     }
 }
