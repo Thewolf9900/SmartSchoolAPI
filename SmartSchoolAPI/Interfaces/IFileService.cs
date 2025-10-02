@@ -31,9 +31,6 @@ namespace SmartSchoolAPI.Interfaces
         /// <param name="publicId">المعرف الفريد (PublicId) للملف في Cloudinary.</param>
         Task DeleteFileAsync(string publicId);
 
-        /// <summary>
-        /// (مهملة) لم تعد هذه الدالة مدعومة لأن الملفات مخزنة سحابيًا ولا يوجد وصول مباشر للملفات المادية.
-        /// </summary>
-        (byte[] fileBytes, string contentType, string fileName) GetPhysicalFile(string relativePath);
+        
     }
 }
