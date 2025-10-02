@@ -124,7 +124,8 @@ namespace SmartSchoolAPI.Services
                 Overwrite = false
             };
 
-            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+            var uploadResult = await _cloudinary.UploadLargeAsync(uploadParams);
+
 
             if (uploadResult.Error != null)
             {
