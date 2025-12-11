@@ -169,7 +169,7 @@ using (var scope = app.Services.CreateScope())
         var context = services.GetRequiredService<SmartSchoolDbContext>();
 
         // الخطوة 1: تطبيق الـ Migrations (الطريقة الاحترافية)
-        context.Database.Migrate();
+      //  context.Database.Migrate();
 
         // الخطوة 2: بذر بيانات المستخدم الأدمن )
         await DataSeeder.SeedAdminUser(services);
