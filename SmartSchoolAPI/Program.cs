@@ -172,7 +172,7 @@ using (var scope = app.Services.CreateScope())
       //  context.Database.Migrate();
 
         // الخطوة 2: بذر بيانات المستخدم الأدمن )
-        await DataSeeder.SeedAdminUser(services);
+     //   await DataSeeder.SeedAdminUser(services);
 
         var logger = loggerFactory.CreateLogger<Program>();
         logger.LogInformation("Database migrated and seeded successfully.");
