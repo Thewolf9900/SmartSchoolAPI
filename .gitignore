@@ -1,0 +1,23 @@
+
+# Valid for most .NET Core projects
+bin/
+obj/
+.vs/
+.vscode/
+.idea/
+
+# User-specific files
+*.user
+*.userosscache
+*.sln.docstates
+
+# Sensitive Configuration Files
+appsettings.json
+appsettings.Development.json
+secrets_backup.txt
+
+# Environment Variables
+.env
+
+# Cloudinary / Image Uploads
+uploads/
