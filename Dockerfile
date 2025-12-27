@@ -3,12 +3,13 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 
 # نسخ ملفات .csproj واستعادة الحزم
-COPY ["SmartSchoolAPI/SmartSchoolAPI.csproj", "SmartSchoolAPI/"]
-RUN dotnet restore "SmartSchoolAPI/SmartSchoolAPI.csproj"
+# نسخ ملفات .csproj واستعادة الحزم
+COPY ["SmartSchoolAPI.csproj", "./"]
+RUN dotnet restore "SmartSchoolAPI.csproj"
 
 # نسخ بقية الكود
 COPY . .
-WORKDIR "/src/SmartSchoolAPI"
+WORKDIR "/src"
 
 # بناء ونشر التطبيق في مجلد واحد
 # ✨ التعديل الأول: أزلنا /p:UseAppHost=false للسماح بإنشاء الملف التنفيذي
