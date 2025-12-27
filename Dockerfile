@@ -21,4 +21,4 @@ WORKDIR /app
 COPY --from=build /app/publish .
 
 # ✨ التعديل الثاني: تغيير نقطة الدخول لتشغيل الملف التنفيذي مباشرة
-ENTRYPOINT ["./SmartSchoolAPI"]
+ENTRYPOINT ["dotnet", "SmartSchoolAPI.dll"]

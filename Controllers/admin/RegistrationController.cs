@@ -44,7 +44,7 @@ namespace SmartSchoolAPI.Controllers.Admin
                 FullName = $"{r.FirstName} {r.LastName}",
                 r.Email,
                 r.NationalId, // إضافة الرقم الوطني للعرض
-                AcademicProgramName = r.AcademicProgram.Name,
+                AcademicProgramName = r.AcademicProgram?.Name ?? "غير محدد",
                 r.Status,
                 r.RequestDate,
                 PaymentReceiptUrl = r.PaymentReceiptUrl
