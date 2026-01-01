@@ -19,7 +19,7 @@ namespace SmartSchoolAPI.Services
         private readonly string _apiKey;
 
         // Using Google Gemini API
-        private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+        private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
         
         public AiService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
         {
@@ -61,10 +61,10 @@ namespace SmartSchoolAPI.Services
             var jsonRequestBody = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(jsonRequestBody, Encoding.UTF8, "application/json");
             
-            // API Key is passed in URL query parameter for Gemini
-            var urlWithKey = $"{BaseUrl}?key={_apiKey}";
+            // API Key passed in Header
+            client.DefaultRequestHeaders.Add("x-goog-api-key", _apiKey);
             
-            var response = await client.PostAsync(urlWithKey, content);
+            var response = await client.PostAsync(BaseUrl, content);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -154,8 +154,13 @@ Context to use for generating the questions:
             var jsonRequestBody = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(jsonRequestBody, Encoding.UTF8, "application/json");
 
-            var urlWithKey = $"{BaseUrl}?key={_apiKey}";
-            var response = await client.PostAsync(urlWithKey, content);
+            // API Key passed in Header
+            if (!client.DefaultRequestHeaders.Contains("x-goog-api-key"))
+            {
+                client.DefaultRequestHeaders.Add("x-goog-api-key", _apiKey);
+            }
+
+            var response = await client.PostAsync(BaseUrl, content);
 
             if (!response.IsSuccessStatusCode)
             {
