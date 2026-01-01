@@ -50,8 +50,11 @@ namespace SmartSchoolAPI.Services
                 },
                 generationConfig = new
                 {
-                    temperature = 1,
-                    maxOutputTokens = 8192
+                    temperature = 0.7,
+                    topP = 0.95,
+                    topK = 40,
+                    maxOutputTokens = 2048,
+                    responseMimeType = "text/plain"
                 }
             };
 
@@ -140,8 +143,11 @@ Context to use for generating the questions:
                 contents = contents,
                 generationConfig = new
                 {
-                    temperature = 1,
-                    maxOutputTokens = 1024
+                    temperature = 0.7,
+                    topP = 0.95,
+                    topK = 40,
+                    maxOutputTokens = 2048,
+                    responseMimeType = "text/plain"
                 }
             };
 
