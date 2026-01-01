@@ -59,6 +59,7 @@ builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection(
 // تسجيل خدمات الذكاء الاصطناعي
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IAiService, AiService>();
+builder.Services.AddScoped<IEmailTemplateService, EmailTemplateService>();
 
 // --- إعدادات رفع الملفات ---
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
@@ -79,8 +80,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         
         if (string.IsNullOrEmpty(jwtKey))
         {
-            Console.WriteLine("WARNING: Jwt:Key is empty! Using fallback hardcoded key.");
-            jwtKey = "THIS-IS-MY-SUPER-SECRET-KEY-FOR-SMART-SCHOOL-PROJECT-AND-IT-IS-DEFINITELY-LONGER-THAN-64-CHARACTERS";
+            Console.WriteLine("CRITICAL ERROR: Jwt:Key is missing in configuration!");
+            throw new InvalidOperationException("Jwt:Key is missing in appsettings.json. Please configure it to start the application.");
         }
 
         Console.WriteLine($"DEBUG: ConnectionString is: '{connectionString}'");

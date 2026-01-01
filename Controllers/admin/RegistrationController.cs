@@ -20,17 +20,20 @@ namespace SmartSchoolAPI.Controllers.Admin
         private readonly IUserRepository _userRepo;
         private readonly IFileService _fileService;
         private readonly IEmailService _emailService;
+        private readonly IEmailTemplateService _emailTemplateService;
 
         public RegistrationController(
             IProgramRegistrationRepository registrationRepo,
             IUserRepository userRepo,
             IFileService fileService,
-            IEmailService emailService)
+            IEmailService emailService,
+            IEmailTemplateService emailTemplateService)
         {
             _registrationRepo = registrationRepo;
             _userRepo = userRepo;
             _fileService = fileService;
             _emailService = emailService;
+            _emailTemplateService = emailTemplateService;
         }
 
         #region عرض وإدارة حالات الطلبات
@@ -97,7 +100,12 @@ namespace SmartSchoolAPI.Controllers.Admin
             await _registrationRepo.SaveChangesAsync();
 
             var subject = "ملاحظة بخصوص إيصال الدفع";
-            var body = $"<p>مرحباً {registration.FirstName},</p><p>ملاحظة من الإدارة بخصوص إيصال الدفع الذي قمت برفعه: {adminNotes}</p><p>يرجى تسجيل الدخول إلى حسابك ورفع إيصال جديد وصحيح.</p>";
+            var placeholders = new Dictionary<string, string>
+            {
+                { "FirstName", registration.FirstName },
+                { "AdminNotes", adminNotes }
+            };
+            var body = await _emailTemplateService.GetTemplateAsync("RegistrationReceiptRejected.html", placeholders);
             await _emailService.SendEmailAsync(registration.Email, subject, body);
 
             return Ok(new { message = "تم تحديث حالة الطلب إلى 'الإيصال مرفوض' وإعلام المستخدم." });
@@ -139,7 +147,13 @@ namespace SmartSchoolAPI.Controllers.Admin
             await _userRepo.SaveChangesAsync();
 
             var subject = "تهانينا! تم قبولك في Smart School";
-            var body = $@"<h1>أهلاً بك في Smart School</h1><p>مرحباً {newUser.FirstName},</p><p>يسعدنا إعلامك بأنه قد تمت الموافقة على طلب تسجيلك في برنامج '{registration.AcademicProgram.Name}'.</p><p>يمكنك الآن تسجيل الدخول إلى حسابك باستخدام نفس كلمة المرور التي قمت بإنشائها عند التسجيل.</p><p>ملاحظة هامة: حسابك الآن نشط، ولكنك ستحتاج إلى انتظار قيام الإدارة بتسجيلك في الفصول الدراسية لتبدأ رحلتك التعليمية.</p><p>مع تحيات فريق Smart School</p>";
+            var programName = registration.AcademicProgram?.Name ?? "البرنامج الأكاديمي";
+            var placeholders = new Dictionary<string, string>
+            {
+                { "FirstName", newUser.FirstName },
+                { "ProgramName", programName }
+            };
+            var body = await _emailTemplateService.GetTemplateAsync("RegistrationApproved.html", placeholders);
             await _emailService.SendEmailAsync(newUser.Email, subject, body);
 
             return Ok(new { message = "تمت الموافقة على الطلب بنجاح، وتم إرسال بريد إلكتروني للطالب." });
@@ -162,7 +176,12 @@ namespace SmartSchoolAPI.Controllers.Admin
             }
 
             var subject = "بخصوص طلب تسجيلك في Smart School";
-            var body = $"<p>مرحباً {registration.FirstName},</p><p>نأسف لإعلامك بأنه قد تم رفض طلب تسجيلك. السبب: {adminNotes}</p><p>إذا كنت تعتقد أن هذا خطأ، يمكنك محاولة تقديم طلب جديد.</p>";
+            var placeholders = new Dictionary<string, string>
+            {
+                { "FirstName", registration.FirstName },
+                { "AdminNotes", adminNotes }
+            };
+            var body = await _emailTemplateService.GetTemplateAsync("RegistrationRejected.html", placeholders);
             await _emailService.SendEmailAsync(registration.Email, subject, body);
 
             _registrationRepo.DeleteRegistration(registration);

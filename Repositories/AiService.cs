@@ -18,16 +18,15 @@ namespace SmartSchoolAPI.Services
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly string _apiKey;
 
-        // Using different models for different tasks is a good practice
-        private const string GenerationModelUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=";
-        //private const string ChatModelUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=";
-        private const string ChatModelUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=";
-
+        // Using Google Gemini API
+        private const string BaseUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+        
         public AiService(IHttpClientFactory httpClientFactory, IConfiguration configuration)
         {
             _httpClientFactory = httpClientFactory;
-            _apiKey = configuration["AiService:GeminiApiKey"]
-                      ?? throw new InvalidOperationException("مفتاح Gemini API غير موجود في ملف الإعدادات appsettings.json.");
+            _apiKey = configuration["AiService:GeminiApiKey"] 
+                      ?? configuration["AiService:AimlApiKey"] // Fallback attempt
+                      ?? throw new InvalidOperationException("مفتاح Google Gemini API غير موجود. يرجى إضافته باسم GeminiApiKey.");
         }
 
         #region Question Generation Logic
@@ -35,15 +34,34 @@ namespace SmartSchoolAPI.Services
         public async Task<IEnumerable<CreateQuestionDto>> GenerateQuestionsAsync(GenerateQuestionsFromTextDto generationParams, string language)
         {
             var client = _httpClientFactory.CreateClient();
-            var fullApiUrl = $"{GenerationModelUrl}{_apiKey}";
+            client.Timeout = TimeSpan.FromMinutes(2);
 
             string prompt = BuildQuestionPrompt(generationParams, language);
+            
+            // Google Gemini format
+            var requestBody = new
+            {
+                contents = new[]
+                {
+                    new {
+                        role = "user",
+                        parts = new[] { new { text = prompt } }
+                    }
+                },
+                generationConfig = new
+                {
+                    temperature = 1,
+                    maxOutputTokens = 8192
+                }
+            };
 
-            var requestBody = new { contents = new[] { new { parts = new[] { new { text = prompt } } } } };
             var jsonRequestBody = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(jsonRequestBody, Encoding.UTF8, "application/json");
-
-            var response = await client.PostAsync(fullApiUrl, content);
+            
+            // API Key is passed in URL query parameter for Gemini
+            var urlWithKey = $"{BaseUrl}?key={_apiKey}";
+            
+            var response = await client.PostAsync(urlWithKey, content);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -102,20 +120,36 @@ Context to use for generating the questions:
         public async Task<string> GetChatResponseAsync(IEnumerable<ChatMessage> messageHistory)
         {
             var client = _httpClientFactory.CreateClient();
-            var fullApiUrl = $"{ChatModelUrl}{_apiKey}";
+            // Auth is via URL param
 
-            var chatHistoryForApi = BuildChatHistoryForApi(messageHistory);
+            // Construct Gemini format messages
+            var contents = new List<object>();
+            foreach (var msg in messageHistory)
+            {
+                // Gemini uses 'model' instead of 'assistant'
+                string role = msg.Sender.ToLower() == "user" ? "user" : "model";
+                contents.Add(new 
+                { 
+                    role = role, 
+                    parts = new[] { new { text = msg.Content } }
+                });
+            }
 
             var requestBody = new
             {
-                contents = chatHistoryForApi,
-                generationConfig = new { maxOutputTokens = 1024 }
+                contents = contents,
+                generationConfig = new
+                {
+                    temperature = 1,
+                    maxOutputTokens = 1024
+                }
             };
 
             var jsonRequestBody = JsonSerializer.Serialize(requestBody);
             var content = new StringContent(jsonRequestBody, Encoding.UTF8, "application/json");
 
-            var response = await client.PostAsync(fullApiUrl, content);
+            var urlWithKey = $"{BaseUrl}?key={_apiKey}";
+            var response = await client.PostAsync(urlWithKey, content);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -129,20 +163,21 @@ Context to use for generating the questions:
             return string.IsNullOrWhiteSpace(generatedText) ? "عذرًا، لم أتمكن من معالجة طلبك حاليًا." : generatedText;
         }
 
-        private object[] BuildChatHistoryForApi(IEnumerable<ChatMessage> messageHistory)
+        private string BuildChatPromptGeneric(IEnumerable<ChatMessage> messageHistory)
         {
-            // Convert our ChatMessage history to the format Gemini expects for multi-turn chat
-            var history = messageHistory.Select(msg => new {
-                role = msg.Sender.ToLower() == "user" ? "user" : "model",
-                parts = new[] { new { text = msg.Content } }
-            }).ToList();
-
-            // Optionally add a system instruction for persona (though it's often better to put it as the first 'user' message)
-            // Example:
-            // var systemInstruction = new { role = "system", parts = new[] { new { text = "You are a helpful assistant..." } } };
-            // history.Insert(0, systemInstruction);
-
-            return history.ToArray();
+            var sb = new StringBuilder();
+            foreach (var msg in messageHistory)
+            {
+                if (msg.Sender.ToLower() == "user")
+                {
+                    sb.Append($"[INST] {msg.Content} [/INST]");
+                }
+                else
+                {
+                    sb.Append($" {msg.Content} </s>");
+                }
+            }
+            return sb.ToString();
         }
 
         #endregion
@@ -154,13 +189,16 @@ Context to use for generating the questions:
             try
             {
                 using var doc = JsonDocument.Parse(jsonResponse);
-                var text = doc.RootElement
-                              .GetProperty("candidates")[0]
-                              .GetProperty("content")
-                              .GetProperty("parts")[0]
-                              .GetProperty("text")
-                              .GetString();
-                return text?.Trim().Replace("```json", "").Replace("```", "") ?? "";
+                if (doc.RootElement.TryGetProperty("candidates", out var candidates) && candidates.GetArrayLength() > 0)
+                {
+                    var content = candidates[0].GetProperty("content");
+                    if (content.TryGetProperty("parts", out var parts) && parts.GetArrayLength() > 0)
+                    {
+                        var text = parts[0].GetProperty("text").GetString();
+                        return text?.Trim().Replace("```json", "").Replace("```", "") ?? "";
+                    }
+                }
+                return jsonResponse;
             }
             catch (Exception)
             {

@@ -26,7 +26,7 @@ namespace SmartSchoolAPI.Repositories
             return await _context.Classrooms
                .Include(c => c.Teacher)
                .Include(c => c.Course)
-                   .ThenInclude(course => course.AcademicProgram)
+                   .ThenInclude(course => course!.AcademicProgram)
                .Include(c => c.Enrollments)
                .FirstOrDefaultAsync(c => c.ClassroomId == classroomId);
         }
@@ -39,7 +39,7 @@ namespace SmartSchoolAPI.Repositories
         {
             var query = _context.Classrooms
                 .Include(c => c.Course)
-                    .ThenInclude(co => co.AcademicProgram)
+                    .ThenInclude(co => co!.AcademicProgram)
                 .Include(c => c.Teacher)
                 .Include(c => c.Enrollments)
                 .AsQueryable();
@@ -92,7 +92,7 @@ namespace SmartSchoolAPI.Repositories
         {
             var query = _context.Classrooms
                                  .Include(c => c.Course)
-                                    .ThenInclude(course => course.AcademicProgram)
+                                    .ThenInclude(course => course!.AcademicProgram)
                                  .Include(c => c.Enrollments)
                                  .Include(c => c.Teacher)
                                  .Where(c => c.TeacherId == teacherId);

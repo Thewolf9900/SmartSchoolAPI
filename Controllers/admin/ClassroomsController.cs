@@ -68,9 +68,9 @@ namespace SmartSchoolAPI.Controllers.Admin
                 ClassroomId = classroom.ClassroomId,
                 Name = classroom.Name,
                 CourseId = classroom.CourseId,
-                CourseName = classroom.Course.Name,
-                AcademicProgramId = classroom.Course.AcademicProgram.AcademicProgramId,
-                AcademicProgramName = classroom.Course.AcademicProgram.Name,
+                CourseName = classroom.Course?.Name ?? "Unknown Course",
+                AcademicProgramId = classroom.Course?.AcademicProgram?.AcademicProgramId ?? 0,
+                AcademicProgramName = classroom.Course?.AcademicProgram?.Name ?? "Unknown Program",
                 Status = classroom.Status.ToString(),
                 Capacity = classroom.Capacity,
                 TeacherId = classroom.TeacherId,
@@ -138,7 +138,7 @@ namespace SmartSchoolAPI.Controllers.Admin
                 CourseId = course.CourseId,
                 CourseName = course.Name,
                 AcademicProgramId = course.AcademicProgramId,
-                AcademicProgramName = course.AcademicProgram.Name,
+                AcademicProgramName = course.AcademicProgram?.Name ?? "Unknown Program",
                 TeacherName = "غير معين"
             };
             return CreatedAtAction(nameof(GetClassroomById), new { id = classroomEntity.ClassroomId }, classroomDto);

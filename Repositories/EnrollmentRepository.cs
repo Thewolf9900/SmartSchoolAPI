@@ -45,9 +45,9 @@ namespace SmartSchoolAPI.Repositories
             return await _context.Enrollments
                 .Where(e => e.StudentId == studentId)
                 .Include(e => e.Classroom)
-                    .ThenInclude(c => c.Course)
+                    .ThenInclude(c => c!.Course)
                 .Include(e => e.Classroom)
-                    .ThenInclude(c => c.Teacher)
+                    .ThenInclude(c => c!.Teacher)
                 .AsNoTracking()
                 .ToListAsync();
         }
@@ -64,7 +64,7 @@ namespace SmartSchoolAPI.Repositories
         {
              
             return await _context.Enrollments
-                .AnyAsync(e => e.StudentId == studentId && e.Classroom.CourseId == courseId);
+                .AnyAsync(e => e.StudentId == studentId && e.Classroom != null && e.Classroom.CourseId == courseId);
         }
         #endregion
 

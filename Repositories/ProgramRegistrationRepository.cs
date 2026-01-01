@@ -40,6 +40,7 @@ namespace SmartSchoolAPI.Repositories
         public async Task<ProgramRegistration> GetRegistrationByEmailAndProgramAsync(string email, int programId)
         {
             return await _context.ProgramRegistrations
+                .Include(r => r.AcademicProgram)
                 .FirstOrDefaultAsync(r => r.Email.ToLower() == email.ToLower() && r.AcademicProgramId == programId);
         }
 
@@ -55,6 +56,7 @@ namespace SmartSchoolAPI.Repositories
         public async Task<ProgramRegistration> GetActiveRegistrationByEmailAsync(string email)
         {
             return await _context.ProgramRegistrations
+                .Include(r => r.AcademicProgram)
                 .FirstOrDefaultAsync(r => r.Email.ToLower() == email.ToLower()
                                      && r.Status != RegistrationStatus.Rejected);
         }
@@ -62,6 +64,7 @@ namespace SmartSchoolAPI.Repositories
         public async Task<ProgramRegistration> GetActiveRegistrationByNationalIdAsync(string nationalId)
         {
             return await _context.ProgramRegistrations
+                .Include(r => r.AcademicProgram)
                 .FirstOrDefaultAsync(r => r.NationalId == nationalId
                                      && r.Status != RegistrationStatus.Rejected);
         }
